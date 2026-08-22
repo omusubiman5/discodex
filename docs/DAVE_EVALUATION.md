@@ -75,3 +75,15 @@ P1で最低限確認する組合せ:
 **条件付きGO**: 公式libdaveを唯一の暗号engine候補としてP1へ進めます。
 
 **まだNO-GO**: 実Discord voice接続、bot token発行、常時参加、PM Codex E2Eは、上記build/integration gate合格前には進めません。公式libdaveのNode統合が成立しなければ、暗号を自作せずDiscord音声PoCを停止します。
+
+## 2026-08-22 ローカルpreflight結果
+
+- 検査した公式commit: `52cd56dc550f447fb354b3a06c9e2d2e2a4309c6`
+- Node `v24.15.0`: project要件を満たす。
+- Git/CMake: 利用可能。
+- Windows MSVC `cl.exe`: 未導入のためnative buildはblocked。
+- `cpp/vcpkg` submodule: shallow checkoutでは未初期化。
+- 公式repositoryにNode用のprebuilt WASMは含まれず、現行WASM buildは`ENVIRONMENT=web`。
+- npmで確認した `@discordjs/voice@0.19.2` は `@snazzah/davey` に依存し、公式libdave差替えpointを提供しないため直接採用しない。
+
+固定情報は `config/dependencies.json`、再現検査は `npm run preflight:discord` に置きました。次のローカルgateはMSVC C++ toolchainとvcpkg submoduleを揃えた公式C API buildです。

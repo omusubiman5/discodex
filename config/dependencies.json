@@ -1,0 +1,35 @@
+{
+  "evaluatedAt": "2026-08-22",
+  "libdave": {
+    "repository": "https://github.com/discord/libdave.git",
+    "commit": "52cd56dc550f447fb354b3a06c9e2d2e2a4309c6",
+    "license": "MIT",
+    "cryptoProvider": "discord/libdave",
+    "nativeCapi": true,
+    "publishedNodePackage": false,
+    "prebuiltWasmInRepository": false,
+    "wasmEnvironment": "web",
+    "persistentKeys": false
+  },
+  "discordVoiceSdk": {
+    "package": "@discordjs/voice",
+    "observedVersion": "0.19.2",
+    "observedNodeEngine": ">=22.12.0",
+    "daveProvider": "@snazzah/davey",
+    "decision": "connection-layer-reference-only",
+    "reason": "The package does not expose a supported discord/libdave injection point. Third-party DAVE cannot satisfy the official-libdave-only policy."
+  },
+  "node": {
+    "projectMinimum": "24.0.0"
+  },
+  "windowsNativeBuild": {
+    "required": ["git", "cmake", "cl"],
+    "optional": ["ninja"],
+    "dependencyBootstrap": "libdave cpp/vcpkg submodule"
+  },
+  "macosNativeBuild": {
+    "required": ["git", "cmake", "clang"],
+    "optional": ["ninja"],
+    "dependencyBootstrap": "libdave cpp/vcpkg submodule"
+  }
+}

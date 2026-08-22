@@ -31,6 +31,7 @@ Node.js 24以降で実行します。依存packageのinstallは不要です。
 ```powershell
 cd C:\Projects\codex-discord-voice-bridge
 npm test
+npm run preflight:discord
 npm run dry-run:discord
 npm run dry-run:meet
 ```
@@ -73,6 +74,7 @@ DAVE暗号処理にはDiscord公式 [`discord/libdave`](https://github.com/disco
 - [安全境界](docs/SAFETY_BOUNDARIES.md)
 - [Discord最小PoC](docs/DISCORD_POC.md)
 - [公式libdave評価](docs/DAVE_EVALUATION.md)
+- [Discordローカル設定](docs/DISCORD_LOCAL_SETUP.md)
 
 ## ステータス
 
@@ -81,4 +83,5 @@ DAVE暗号処理にはDiscord公式 [`discord/libdave`](https://github.com/disco
 - 資格情報設定: なし
 - 実音声・常時参加: なし
 - Discord DAVE判断: 公式libdaveを条件付き採用、Node統合probe待ち
+- Gateway進捗: Identify、Gateway Ready、Voice State/Server両event待機をpure state machineとして実装済み
 - Meetron: GPL-3.0-onlyの参考実装に限定し、コードを取り込まない

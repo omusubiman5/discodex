@@ -11,6 +11,7 @@
     "dry-run": "node src/cli.ts dry-run --config config/bridge.example.json",
     "dry-run:discord": "node src/cli.ts dry-run --transport discord --config config/bridge.example.json",
     "dry-run:meet": "node src/cli.ts dry-run --transport meet --config config/bridge.example.json",
+    "preflight:discord": "node src/preflight-cli.ts",
     "test": "node --test tests/*.test.ts"
   }
 }
