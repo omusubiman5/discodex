@@ -162,12 +162,16 @@ export class DiscordVoiceGatewaySession {
 
   receiveCommit(payload: Uint8Array): "accepted" | "ignored" | "failed" {
     this.#assertPreparing("Commit");
-    return this.#dave.processCommit(payload);
+    const result = this.#dave.processCommit(payload);
+    if (result === "failed") this.#failClosed("DAVE commit processing failed.");
+    return result;
   }
 
   receiveWelcome(payload: Uint8Array, recognizedUserIds: readonly string[]): "accepted" | "failed" {
     this.#assertPreparing("Welcome");
-    return this.#dave.processWelcome(payload, recognizedUserIds);
+    const result = this.#dave.processWelcome(payload, recognizedUserIds);
+    if (result === "failed") this.#failClosed("DAVE welcome processing failed.");
+    return result;
   }
 
   markDaveReady(transitionId: number): GatewayPayload {
