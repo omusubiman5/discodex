@@ -1,0 +1,34 @@
+{
+  "mode": "dry-run",
+  "transport": "discord",
+  "session": {
+    "maxDurationMinutes": 30,
+    "wakePhrase": "PM Codex",
+    "requireExplicitStart": true
+  },
+  "codex": {
+    "target": "current-task",
+    "cdpHost": "127.0.0.1"
+  },
+  "discord": {
+    "guildId": "DISCORD_GUILD_ID",
+    "voiceChannelId": "DISCORD_VOICE_CHANNEL_ID",
+    "textChannelId": "DISCORD_TEXT_CHANNEL_ID",
+    "allowedUserIds": ["DISCORD_OWNER_USER_ID"],
+    "gatewayVersion": 8,
+    "dave": {
+      "required": true,
+      "provider": "discord/libdave"
+    },
+    "textCommands": {
+      "mode": "application-commands",
+      "commandName": "pm",
+      "persistUserPromptContent": false
+    }
+  },
+  "meet": {
+    "enabled": false,
+    "meetingUrl": "https://meet.google.com/xxx-yyyy-zzz",
+    "dedicatedProfile": true
+  }
+}
