@@ -83,10 +83,13 @@ P1で最低限確認する組合せ:
 - Git/CMake: 利用可能。
 - Windows MSVC `cl.exe`: 未導入のためnative buildはblocked。
 - `cpp/vcpkg` submodule: 初期化済みで固定checkoutから参照可能。
+- 公式 `bootstrap-vcpkg.bat`: 成功。公式 `x64-windows-static` configureは完全なVisual Studio/MSVC/Windows SDK不在でsource compile前に停止。
+- MinGW補助probe: OpenSSL/gtest/nlohmann-json/Catch2はbuild成功。MLS++がGCC 16.1の`maybe-uninitialized`を`-Werror`化して停止したため、libdave artifactとC API testは未生成。
 - 公式repositoryにNode用のprebuilt WASMは含まれず、現行WASM buildは`ENVIRONMENT=web`。
 - npmで確認した `@discordjs/voice@0.19.2` は `@snazzah/davey` に依存し、公式libdave差替えpointを提供しないため直接採用しない。
 
 固定情報は `config/dependencies.json`、再現検査は `npm run preflight:discord` に置きました。次のローカルgateはMSVC C++ toolchainでの公式C API buildと、薄いNode bindingの適合確認です。
+詳細な再現結果は `docs/LIBDAVE_BUILD_PROBE.md` に固定しています。
 
 ## 2026-08-22 protocol mock gate
 
