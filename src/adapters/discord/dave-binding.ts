@@ -7,6 +7,7 @@ export interface DaveSessionOptions {
 export interface DaveSession {
   maxProtocolVersion(): number;
   setProtocolVersion(version: number): void;
+  setExternalSender(payload: Uint8Array): void;
   processProposals(payload: Uint8Array, recognizedUserIds: readonly string[]): Uint8Array | null;
   processCommit(payload: Uint8Array): "accepted" | "ignored" | "failed";
   processWelcome(payload: Uint8Array, recognizedUserIds: readonly string[]): "accepted" | "failed";

@@ -82,8 +82,22 @@ P1で最低限確認する組合せ:
 - Node `v24.15.0`: project要件を満たす。
 - Git/CMake: 利用可能。
 - Windows MSVC `cl.exe`: 未導入のためnative buildはblocked。
-- `cpp/vcpkg` submodule: shallow checkoutでは未初期化。
+- `cpp/vcpkg` submodule: 初期化済みで固定checkoutから参照可能。
 - 公式repositoryにNode用のprebuilt WASMは含まれず、現行WASM buildは`ENVIRONMENT=web`。
 - npmで確認した `@discordjs/voice@0.19.2` は `@snazzah/davey` に依存し、公式libdave差替えpointを提供しないため直接採用しない。
 
-固定情報は `config/dependencies.json`、再現検査は `npm run preflight:discord` に置きました。次のローカルgateはMSVC C++ toolchainとvcpkg submoduleを揃えた公式C API buildです。
+固定情報は `config/dependencies.json`、再現検査は `npm run preflight:discord` に置きました。次のローカルgateはMSVC C++ toolchainでの公式C API buildと、薄いNode bindingの適合確認です。
+
+## 2026-08-22 protocol mock gate
+
+実socketやcredentialを使わない状態試験として、以下を実装済みです。
+
+- Main Gatewayの要求guild/channel、READYで得たbot user、Voice State/Server Updateを厳密に相関し、不一致と重複をfail-closedにする。
+- Voice Gateway v8 Identify、`seq_ack` heartbeat/ACK、UDP discovery結果のSelect Protocolを表現する。
+- AES-256-GCMを優先し、必須XChaCha20-Poly1305へだけfallbackする。旧transport modeは拒否する。
+- 32-byte transport keyと非ゼロDAVE versionを検証し、version 0/downgradeをfail-closedにする。
+- External Sender、proposal、commit、welcomeを公式libdave binding境界へ委譲する。
+- transition IDを照合し、Ready送信後のExecute TransitionまでSpeaking/audio暗号化を禁止する。
+- Voice token、session ID、endpoint、transport keyのJSONログ表現をkey名でredactする。
+
+`npm test` は34件すべて成功しています。これはprotocol orderingと安全境界の証拠であり、native libdave build、実Voice Gateway、UDP/RTP、resume、Opus、OS audioの成功を意味しません。

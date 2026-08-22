@@ -40,6 +40,9 @@ interface VoiceServerUpdate extends Omit<PendingVoiceServer, "endpoint"> {
 
 export class DiscordGatewaySession {
   #state: GatewaySessionState = "idle";
+  #selfUserId?: string;
+  #requestedGuildId?: string;
+  #requestedChannelId?: string;
   #voiceState?: PendingVoiceState;
   #voiceServer?: PendingVoiceServer;
 
@@ -66,25 +69,42 @@ export class DiscordGatewaySession {
     };
   }
 
-  receiveReady(): void {
+  receiveReady(selfUserId: string): void {
     if (this.#state !== "identified") throw new Error(`Gateway Ready is invalid in ${this.#state}.`);
+    if (!selfUserId) throw new Error("Gateway Ready must identify the bot user.");
+    this.#selfUserId = selfUserId;
     this.#state = "gateway-ready";
   }
 
   requestVoiceState(guildId: string, channelId: string): GatewayPayload {
     if (this.#state !== "gateway-ready") throw new Error(`Voice state request is invalid in ${this.#state}.`);
+    if (!guildId || !channelId) throw new Error("Voice state request requires a guild and channel.");
+    this.#requestedGuildId = guildId;
+    this.#requestedChannelId = channelId;
     this.#state = "voice-state-requested";
     return { op: 4, d: { guild_id: guildId, channel_id: channelId, self_mute: false, self_deaf: false } };
   }
 
   receiveVoiceStateUpdate(update: PendingVoiceState): VoiceGatewayHandoff | null {
     if (this.#state !== "voice-state-requested") throw new Error(`Voice State Update is invalid in ${this.#state}.`);
+    if (this.#voiceState) return this.#failCorrelation("Duplicate Voice State Update received.");
+    if (
+      update.guildId !== this.#requestedGuildId ||
+      update.channelId !== this.#requestedChannelId ||
+      update.userId !== this.#selfUserId
+    ) {
+      return this.#failCorrelation("Voice State Update does not match the requested guild, channel, and bot user.");
+    }
     this.#voiceState = { ...update };
     return this.#completeHandoff();
   }
 
   receiveVoiceServerUpdate(update: VoiceServerUpdate): VoiceGatewayHandoff | null {
     if (this.#state !== "voice-state-requested") throw new Error(`Voice Server Update is invalid in ${this.#state}.`);
+    if (this.#voiceServer) return this.#failCorrelation("Duplicate Voice Server Update received.");
+    if (update.guildId !== this.#requestedGuildId) {
+      return this.#failCorrelation("Voice Server Update does not match the requested guild.");
+    }
     if (!update.endpoint) {
       this.close();
       throw new Error("Voice Server endpoint is unavailable; wait for a new allocation.");
@@ -94,6 +114,9 @@ export class DiscordGatewaySession {
   }
 
   close(): void {
+    this.#selfUserId = undefined;
+    this.#requestedGuildId = undefined;
+    this.#requestedChannelId = undefined;
     this.#voiceState = undefined;
     this.#voiceServer = undefined;
     this.#state = "closed";
@@ -111,5 +134,10 @@ export class DiscordGatewaySession {
       endpoint: this.#voiceServer.endpoint,
       token: this.#voiceServer.token,
     };
+  }
+
+  #failCorrelation(message: string): never {
+    this.close();
+    throw new Error(message);
   }
 }

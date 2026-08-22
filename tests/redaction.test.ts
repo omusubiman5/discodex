@@ -9,3 +9,10 @@ test("redacts Discord-like secrets, IDs, and Meet URLs", () => {
   assert.doesNotMatch(output, /REDACTED_DISCORD_ID_1/);
   assert.doesNotMatch(output, /abc-defg-hij/);
 });
+
+test("redacts Voice Gateway credentials and endpoint by JSON key", () => {
+  const input = JSON.stringify({ token: "voice-token", endpoint: "voice.example", sessionId: "voice-session", secret_key: [1, 2, 3] });
+  const output = redact(input);
+  assert.doesNotMatch(output, /voice-token|voice\.example|voice-session|\[1,2,3\]/);
+  assert.equal(JSON.parse(output).token, "[REDACTED_SECRET]");
+});
