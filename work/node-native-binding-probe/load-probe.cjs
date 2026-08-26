@@ -1,6 +1,8 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const TEST_DISCORD_ID_6 = ((10n ** 17n) + 6n).toString();
+const TEST_DISCORD_ID_7 = ((10n ** 17n) + 7n).toString();
 const path = require("node:path");
 
 const binding = require(path.join(__dirname, "build", "libdave_node_probe.node"));
@@ -8,7 +10,7 @@ assert.equal(Number.isInteger(binding.maxProtocolVersion), true);
 assert.equal(binding.maxProtocolVersion > 0, true);
 assert.equal(binding.sessionLifecycle(), true);
 assert.equal(binding.sessionOpen(), true);
-assert.equal(binding.sessionConfigure("REDACTED_DISCORD_ID_7", "REDACTED_DISCORD_ID_6"), true);
+assert.equal(binding.sessionConfigure(TEST_DISCORD_ID_7, TEST_DISCORD_ID_6), true);
 assert.equal(binding.sessionSetProtocolVersion(), true);
 assert.equal(typeof binding.sessionSetExternalSender, "function");
 const keyPackage = binding.sessionKeyPackage();

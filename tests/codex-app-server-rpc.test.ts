@@ -3,8 +3,9 @@ import test from "node:test";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { DesktopOwnedCodexAppServerTransport, SpawnedCodexAppServerTransport, type CodexAppServerProcess } from "../src/core/codex-app-server-rpc.ts";
+import { TEST_CODEX_TASK_ID_1 } from "./fixtures/public-identities.mjs";
 
-const THREAD_ID = "REDACTED_CODEX_TASK_ID_1";
+const THREAD_ID = TEST_CODEX_TASK_ID_1;
 
 class FakeProcess extends EventEmitter implements CodexAppServerProcess {
   readonly stdin = new PassThrough();

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { loadOfficialLibdaveNativeProbe, openOfficialLibdaveNativeReadySession } from "../src/adapters/discord/native-addon.ts";
+import { TEST_DISCORD_ID_1, TEST_DISCORD_ID_2 } from "./fixtures/public-identities.mjs";
 
 test("loads only an official native C API probe with a passing lifecycle", () => {
   let loadedPath = "";
@@ -49,9 +50,9 @@ test("native ready session exposes live epoch and External Sender operations", (
   }));
   session.setProtocolVersion(1);
   session.setExternalSender(Uint8Array.from([0xaa]));
-  session.configure("REDACTED_DISCORD_ID_1", "REDACTED_DISCORD_ID_2");
+  session.configure(TEST_DISCORD_ID_1, TEST_DISCORD_ID_2);
   assert.deepEqual(session.createKeyPackage(), Uint8Array.from([1, 2, 3]));
-  assert.deepEqual(calls, ["version:1", "external:aa", "configure:REDACTED_DISCORD_ID_1:REDACTED_DISCORD_ID_2", "key-package"]);
+  assert.deepEqual(calls, ["version:1", "external:aa", `configure:${TEST_DISCORD_ID_1}:${TEST_DISCORD_ID_2}`, "key-package"]);
   session.close();
 });
 
@@ -67,9 +68,9 @@ test("native ready session processes MLS control results and fails closed on mal
     sessionProcessWelcome: () => false,
     sessionReset: () => true,
   }));
-  assert.deepEqual(session.processProposals(Uint8Array.from([1]), ["REDACTED_DISCORD_ID_1"]), Uint8Array.from([9]));
+  assert.deepEqual(session.processProposals(Uint8Array.from([1]), [TEST_DISCORD_ID_1]), Uint8Array.from([9]));
   assert.equal(session.processCommit(Uint8Array.from([2])), "ignored");
-  assert.equal(session.processWelcome(Uint8Array.from([3]), ["REDACTED_DISCORD_ID_1"]), "failed");
+  assert.equal(session.processWelcome(Uint8Array.from([3]), [TEST_DISCORD_ID_1]), "failed");
   session.reset();
   session.close();
 
@@ -96,9 +97,9 @@ test("native ready session binds DAVE decrypt to the packet SSRC", () => {
     sessionSelectMediaRatchet: (userId: string, ssrc: number) => { calls.push(`select:${userId}:${ssrc}`); return true; },
     sessionDecryptOpus: (ssrc: number, frame: Uint8Array) => { calls.push(`decrypt:${ssrc}`); return Buffer.from(frame).subarray(1); },
   }));
-  session.selectMediaRatchet("REDACTED_DISCORD_ID_1", 84);
+  session.selectMediaRatchet(TEST_DISCORD_ID_1, 84);
   assert.deepEqual(session.decryptOpus(84, Uint8Array.from([0xda, 1, 2])), Uint8Array.from([1, 2]));
-  assert.deepEqual(calls, ["select:REDACTED_DISCORD_ID_1:84", "decrypt:84"]);
+  assert.deepEqual(calls, [`select:${TEST_DISCORD_ID_1}:84`, "decrypt:84"]);
   session.close();
 });
 

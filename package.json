@@ -15,6 +15,7 @@
     "tar": "7.5.22"
   },
   "scripts": {
+    "postinstall": "node scripts/apply-meetmate-provider-injection.cjs",
     "dry-run": "node src/cli.ts dry-run --config config/bridge.example.json",
     "dry-run:discord": "node src/cli.ts dry-run --transport discord --config config/bridge.example.json",
     "dry-run:meet": "node src/cli.ts dry-run --transport meet --config config/bridge.example.json",

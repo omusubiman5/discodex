@@ -5,6 +5,13 @@ import { EnvironmentCredentialProvider } from "../src/core/credentials.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import {
+  TEST_CODEX_TASK_ID_1,
+  TEST_DISCORD_ID_1,
+  TEST_DISCORD_ID_2,
+  TEST_DISCORD_ID_3,
+  TEST_DISCORD_ID_4,
+} from "./fixtures/public-identities.mjs";
 
 class FakeSocket implements GatewaySocket {
   sent: string[] = [];
@@ -77,11 +84,11 @@ test("recoverable transport failure retries once while identity failures fail cl
 
 test("Voice Resume op7 preserves the exact session and last received sequence", () => {
   const payload = buildVoiceResumePayload({
-    guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2", userId: "REDACTED_DISCORD_ID_3",
+    guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2, userId: TEST_DISCORD_ID_3,
     sessionId: "voice-session", token: "voice-token", endpoint: "voice.example.invalid",
   }, 73);
   assert.deepEqual(payload, { op: 7, d: {
-    server_id: "REDACTED_DISCORD_ID_1", session_id: "voice-session", token: "voice-token", seq_ack: 73,
+    server_id: TEST_DISCORD_ID_1, session_id: "voice-session", token: "voice-token", seq_ack: 73,
   } });
   assert.throws(() => buildVoiceResumePayload({} as never, -1), /seq_ack/);
 });
@@ -312,7 +319,7 @@ test("explicit product stop tears down before credential or network activity", a
     subscribe() { return () => {}; },
   };
   await assert.rejects(runCurrentTaskLiveCall({
-    threadId: "REDACTED_CODEX_TASK_ID_1",
+    threadId: TEST_CODEX_TASK_ID_1,
     appServerTransport: transport,
     signal: controller.signal,
     credentialProvider: { storage: "development-environment", async acquire() { acquired = true; throw new Error("must not acquire"); } },
@@ -366,7 +373,7 @@ test("voice leave explicitly clears a stale Discord voice state", async () => {
     const result = runVoiceLeave({
       timeoutMs: 1_000,
       settleMs: 0,
-      target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+      target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
       socketFactory: () => socket,
       credentialProvider: new EnvironmentCredentialProvider(),
     });
@@ -375,7 +382,7 @@ test("voice leave explicitly clears a stale Discord voice state", async () => {
     socket.emit("message", JSON.stringify({ op: 0, t: "READY", d: { user: { id: "bot-id" } } }));
     assert.deepEqual(await result, { phase: "voice-leave", state: "pass" });
     const leave = JSON.parse(socket.sent.at(-1)!);
-    assert.deepEqual(leave, { op: 4, d: { guild_id: "REDACTED_DISCORD_ID_1", channel_id: null, self_mute: false, self_deaf: false } });
+    assert.deepEqual(leave, { op: 4, d: { guild_id: TEST_DISCORD_ID_1, channel_id: null, self_mute: false, self_deaf: false } });
   } finally {
     if (previous === undefined) delete process.env.CODEX_BRIDGE_DISCORD_BOT_TOKEN;
     else process.env.CODEX_BRIDGE_DISCORD_BOT_TOKEN = previous;
@@ -386,7 +393,7 @@ test("DAVE ready preflight keeps a native session alive without credential or ne
   let nativeOpen = false;
   let acquired = false;
   const handle = prepareDaveReady({
-    target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+    target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
     credentialProvider: { storage: "windows-dpapi-current-user", async acquire() { acquired = true; throw new Error("must not acquire"); } },
     addonPath: "work/probe.node",
     addonLoader: () => ({
@@ -412,7 +419,7 @@ test("DAVE ready preflight keeps a native session alive without credential or ne
 test("macOS DAVE preparation accepts only the Keychain production boundary", () => {
   let nativeOpen = false;
   const handle = prepareDaveReady({
-    target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+    target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
     credentialProvider: { storage: "macos-keychain", async acquire() { throw new Error("must not acquire"); } },
     addonPath: "/synthetic/libdave_node_probe.node",
     addonLoader: () => ({
@@ -426,7 +433,7 @@ test("macOS DAVE preparation accepts only the Keychain production boundary", () 
   handle.close();
   assert.equal(handle.isOpen(), false);
   assert.throws(() => prepareDaveReady({
-    target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+    target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
     credentialProvider: new EnvironmentCredentialProvider(),
     addonLoader: () => { throw new Error("must not load"); },
   }), /production OS-secret provider/);
@@ -462,7 +469,7 @@ test("UDP discovery smoke correlates voice handoff and reports no identifiers", 
   try {
     const result = runUdpDiscoverySmoke({
       timeoutMs: 1_000,
-      target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+      target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
       credentialProvider: new EnvironmentCredentialProvider(),
       liveCallWait: true,
       onLiveStage: (stage) => liveStages.push(stage),
@@ -477,10 +484,10 @@ test("UDP discovery smoke correlates voice handoff and reports no identifiers", 
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
     main.emit("message", JSON.stringify({ op: 10, d: { heartbeat_interval: 45_000 } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 1, d: { user: { id: "REDACTED_DISCORD_ID_3" }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 1, d: { user: { id: TEST_DISCORD_ID_3 }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
     assert.equal(JSON.parse(main.sent.at(-1)!).op, 4);
-    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 2, d: { guild_id: "REDACTED_DISCORD_ID_1", endpoint: "voice.example.invalid", token: "voice-token" } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 3, d: { guild_id: "REDACTED_DISCORD_ID_1", channel_id: "REDACTED_DISCORD_ID_2", user_id: "REDACTED_DISCORD_ID_3", session_id: "voice-session" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 2, d: { guild_id: TEST_DISCORD_ID_1, endpoint: "voice.example.invalid", token: "voice-token" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 3, d: { guild_id: TEST_DISCORD_ID_1, channel_id: TEST_DISCORD_ID_2, user_id: TEST_DISCORD_ID_3, session_id: "voice-session" } }));
     assert.equal(urls[1], "wss://voice.example.invalid/?v=8");
     voice.emit("message", JSON.stringify({ op: 8, d: { heartbeat_interval: 45_000 } }));
     assert.equal(JSON.parse(voice.sent[0]!).op, 0);
@@ -507,7 +514,7 @@ test("UDP discovery resumes the official main Gateway session once before voice 
   try {
     const result = runUdpDiscoverySmoke({
       timeoutMs: 1_000,
-      target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+      target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
       credentialProvider: new EnvironmentCredentialProvider(),
       socketFactory: (url) => {
         urls.push(url);
@@ -519,7 +526,7 @@ test("UDP discovery resumes the official main Gateway session once before voice 
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
     main.emit("message", JSON.stringify({ op: 10, d: { heartbeat_interval: 45_000 } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 7, d: { user: { id: "REDACTED_DISCORD_ID_3" }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 7, d: { user: { id: TEST_DISCORD_ID_3 }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
     main.emit("close");
     await new Promise<void>((resolve) => setImmediate(resolve));
     assert.equal(urls[1], "wss://gateway-resume.example.invalid/?v=10&encoding=json");
@@ -528,8 +535,8 @@ test("UDP discovery resumes the official main Gateway session once before voice 
       op: 6, d: { token: "test-token", session_id: "gateway-session", seq: 7 },
     });
     resumedMain.emit("message", JSON.stringify({ op: 0, t: "RESUMED", s: 8, d: {} }));
-    resumedMain.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 9, d: { guild_id: "REDACTED_DISCORD_ID_1", endpoint: "voice.example.invalid", token: "voice-token" } }));
-    resumedMain.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 10, d: { guild_id: "REDACTED_DISCORD_ID_1", channel_id: "REDACTED_DISCORD_ID_2", user_id: "REDACTED_DISCORD_ID_3", session_id: "voice-session" } }));
+    resumedMain.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 9, d: { guild_id: TEST_DISCORD_ID_1, endpoint: "voice.example.invalid", token: "voice-token" } }));
+    resumedMain.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 10, d: { guild_id: TEST_DISCORD_ID_1, channel_id: TEST_DISCORD_ID_2, user_id: TEST_DISCORD_ID_3, session_id: "voice-session" } }));
     voice.emit("message", JSON.stringify({ op: 8, d: { heartbeat_interval: 45_000 } }));
     voice.emit("message", JSON.stringify({ op: 2, d: { ip: "203.0.113.10", port: 50_000, ssrc: 42, modes: ["aead_xchacha20_poly1305_rtpsize"] } }));
     assert.deepEqual(await result, { phase: "udp-discovery", state: "pass" });
@@ -552,7 +559,7 @@ test("live DAVE routes Opcode25 before Opcode24 initialization and emits binary 
   try {
     const result = runUdpDiscoverySmoke({
       timeoutMs: 1_000,
-      target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+      target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
       credentialProvider: new EnvironmentCredentialProvider(),
       socketFactory: () => ++sockets === 1 ? main : voice,
       udpDiscovery: async () => ({ address: "198.51.100.7", port: 50_001 }),
@@ -576,10 +583,10 @@ test("live DAVE routes Opcode25 before Opcode24 initialization and emits binary 
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
     main.emit("message", JSON.stringify({ op: 10, d: { heartbeat_interval: 45_000 } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 1, d: { user: { id: "REDACTED_DISCORD_ID_3" }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 2, d: { guild_id: "REDACTED_DISCORD_ID_1", endpoint: "voice.example.invalid", token: "voice-token" } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 3, d: { guild_id: "REDACTED_DISCORD_ID_1", channel_id: "REDACTED_DISCORD_ID_2", user_id: "REDACTED_DISCORD_ID_3", session_id: "voice-session" } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 4, d: { guild_id: "REDACTED_DISCORD_ID_1", channel_id: "REDACTED_DISCORD_ID_2", user_id: "REDACTED_DISCORD_ID_3", session_id: "voice-session" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 1, d: { user: { id: TEST_DISCORD_ID_3 }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 2, d: { guild_id: TEST_DISCORD_ID_1, endpoint: "voice.example.invalid", token: "voice-token" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 3, d: { guild_id: TEST_DISCORD_ID_1, channel_id: TEST_DISCORD_ID_2, user_id: TEST_DISCORD_ID_3, session_id: "voice-session" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 4, d: { guild_id: TEST_DISCORD_ID_1, channel_id: TEST_DISCORD_ID_2, user_id: TEST_DISCORD_ID_3, session_id: "voice-session" } }));
     voice.emit("message", JSON.stringify({ op: 8, d: { heartbeat_interval: 45_000 } }));
     voice.emit("message", JSON.stringify({ op: 2, d: { ip: "203.0.113.10", port: 50_000, ssrc: 42, modes: ["aead_xchacha20_poly1305_rtpsize"] } }));
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -591,17 +598,17 @@ test("live DAVE routes Opcode25 before Opcode24 initialization and emits binary 
     assert.equal(voice.sent.at(-1), "1aaabb");
     assert.deepEqual(nativeCalls, [
       "open",
-      "configure:REDACTED_DISCORD_ID_2:REDACTED_DISCORD_ID_3",
+      `configure:${TEST_DISCORD_ID_2}:${TEST_DISCORD_ID_3}`,
       "version:1",
       "key-package",
       "external:dead",
-      "configure:REDACTED_DISCORD_ID_2:REDACTED_DISCORD_ID_3",
+      `configure:${TEST_DISCORD_ID_2}:${TEST_DISCORD_ID_3}`,
       "version:1",
       "external:dead",
       "key-package",
     ]);
     assert.deepEqual(negotiated, { daveProtocolVersion: 1, transportMode: "aead_xchacha20_poly1305_rtpsize" });
-    voice.emit("message", JSON.stringify({ op: 11, d: { user_ids: ["REDACTED_DISCORD_ID_4"] } }));
+    voice.emit("message", JSON.stringify({ op: 11, d: { user_ids: [TEST_DISCORD_ID_4] } }));
     voice.emit("message", Uint8Array.from([0, 2, 27, 0xdd]));
     assert.equal(voice.sent.at(-1), "1ccc");
     voice.emit("message", Uint8Array.from([0, 3, 30, 0, 42, 0xee]));
@@ -615,7 +622,7 @@ test("live DAVE routes Opcode25 before Opcode24 initialization and emits binary 
       "proposals:dd:2",
       "welcome:ee:2",
       "reset",
-      "configure:REDACTED_DISCORD_ID_2:REDACTED_DISCORD_ID_3",
+      `configure:${TEST_DISCORD_ID_2}:${TEST_DISCORD_ID_3}`,
       "version:1",
       "external:dead",
       "key-package",
@@ -641,7 +648,7 @@ test("live receive injects authenticated RTP through the UDP boundary before DAV
   try {
     const result = runUdpDiscoverySmoke({
       timeoutMs: 1_000,
-      target: { guildId: "REDACTED_DISCORD_ID_1", channelId: "REDACTED_DISCORD_ID_2" },
+      target: { guildId: TEST_DISCORD_ID_1, channelId: TEST_DISCORD_ID_2 },
       credentialProvider: new EnvironmentCredentialProvider(),
       socketFactory: () => ++sockets === 1 ? main : voice,
       udpDiscovery: async () => ({
@@ -677,21 +684,21 @@ test("live receive injects authenticated RTP through the UDP boundary before DAV
     });
     await new Promise<void>((resolve) => setImmediate(resolve));
     main.emit("message", JSON.stringify({ op: 10, d: { heartbeat_interval: 45_000 } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 1, d: { user: { id: "REDACTED_DISCORD_ID_3" }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 2, d: { guild_id: "REDACTED_DISCORD_ID_1", endpoint: "voice.example.invalid", token: "voice-token" } }));
-    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 3, d: { guild_id: "REDACTED_DISCORD_ID_1", channel_id: "REDACTED_DISCORD_ID_2", user_id: "REDACTED_DISCORD_ID_3", session_id: "voice-session" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "READY", s: 1, d: { user: { id: TEST_DISCORD_ID_3 }, session_id: "gateway-session", resume_gateway_url: "wss://gateway-resume.example.invalid" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_SERVER_UPDATE", s: 2, d: { guild_id: TEST_DISCORD_ID_1, endpoint: "voice.example.invalid", token: "voice-token" } }));
+    main.emit("message", JSON.stringify({ op: 0, t: "VOICE_STATE_UPDATE", s: 3, d: { guild_id: TEST_DISCORD_ID_1, channel_id: TEST_DISCORD_ID_2, user_id: TEST_DISCORD_ID_3, session_id: "voice-session" } }));
     voice.emit("message", JSON.stringify({ op: 8, d: { heartbeat_interval: 45_000 } }));
     voice.emit("message", JSON.stringify({ op: 2, d: { ip: "203.0.113.10", port: 50_000, ssrc: 42, modes: ["aead_aes256_gcm_rtpsize"] } }));
     await new Promise<void>((resolve) => setImmediate(resolve));
     voice.emit("message", JSON.stringify({ op: 4, d: { mode: "aead_aes256_gcm_rtpsize", secret_key: Array(32).fill(7), dave_protocol_version: 1 } }));
     voice.emit("message", Uint8Array.from([0, 1, 25, 0xde]));
-    voice.emit("message", JSON.stringify({ op: 11, d: { user_ids: ["REDACTED_DISCORD_ID_4"] } }));
-    voice.emit("message", JSON.stringify({ op: 5, d: { user_id: "REDACTED_DISCORD_ID_4", ssrc: 84, speaking: 1 } }));
+    voice.emit("message", JSON.stringify({ op: 11, d: { user_ids: [TEST_DISCORD_ID_4] } }));
+    voice.emit("message", JSON.stringify({ op: 5, d: { user_id: TEST_DISCORD_ID_4, ssrc: 84, speaking: 1 } }));
     voice.emit("message", Uint8Array.from([0, 2, 30, 0, 0, 0xee]));
     assert.ok(frameListener, "initial DAVE transition must arm the UDP receive path");
     assert.deepEqual(await result, { phase: "udp-discovery", state: "pass" });
     assert.deepEqual(received, { opusBytes: 74 });
-    assert.deepEqual(nativeCalls, ["ratchet:REDACTED_DISCORD_ID_3:42", "dave-decrypt:42", "close"]);
+    assert.deepEqual(nativeCalls, [`ratchet:${TEST_DISCORD_ID_3}:42`, "dave-decrypt:42", "close"]);
   } finally {
     if (previous === undefined) delete process.env.CODEX_BRIDGE_DISCORD_BOT_TOKEN;
     else process.env.CODEX_BRIDGE_DISCORD_BOT_TOKEN = previous;

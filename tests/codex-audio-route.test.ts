@@ -8,6 +8,7 @@ import {
   type CodexAppServerNotification,
   type CodexAppServerRpcTransport,
 } from "../src/core/codex-audio-route.ts";
+import { TEST_CODEX_TASK_ID_1 } from "./fixtures/public-identities.mjs";
 
 class MockRpc implements CodexAppServerRpcTransport {
   readonly requests: Array<{ method: string; params: unknown }> = [];
@@ -17,7 +18,7 @@ class MockRpc implements CodexAppServerRpcTransport {
   emit(notification: CodexAppServerNotification): void { for (const listener of this.listeners) listener(notification); }
 }
 
-const THREAD_ID = "REDACTED_CODEX_TASK_ID_1";
+const THREAD_ID = TEST_CODEX_TASK_ID_1;
 
 test("Discord PCM converts to Codex wire PCM and output converts back", () => {
   const input = { samples: Int16Array.from([100, 300, 500, 700, -100, -300, -500, -700]), sampleRate: 48_000 as const, channels: 2 as const };

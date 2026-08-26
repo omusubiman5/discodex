@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { TEST_DISCORD_ID_5, TEST_DISCORD_ID_10 } from "./fixtures/public-identities.mjs";
 
 const sourcePath = resolve("scripts/run-discodex-relay-app.ps1");
 const buildPath = resolve("scripts/build-discodex-relay.ps1");
@@ -127,8 +128,8 @@ test("gain command persists approved values and rejects unsafe values", () => {
     const runtimePath = join(directory, "runtime.json");
     const storePath = join(directory, "gain.json");
     writeFileSync(runtimePath, JSON.stringify({
-      discordGuildId: "REDACTED_DISCORD_ID_5",
-      discordVoiceChannelId: "REDACTED_DISCORD_ID_10",
+      discordGuildId: TEST_DISCORD_ID_5,
+      discordVoiceChannelId: TEST_DISCORD_ID_10,
     }));
     const env = { ...process.env, CODEX_BRIDGE_MEETRON_RUNTIME_CONFIG: runtimePath, CODEX_BRIDGE_GAIN_STORE_PATH: storePath };
     const initial = spawnSync("node.exe", [resolve("scripts/manage-discord-output-gain.mjs"), "get"], { encoding: "utf8", env });

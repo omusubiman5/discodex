@@ -15,16 +15,19 @@ $prepareCodexScript = Join-Path $repoRoot 'scripts\prepare-codex-desktop-for-dis
 $taskFile = Join-Path $repoRoot 'runtime\discodex-relay.thread-id'
 $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
-foreach ($required in @($startScript, $stopScript, $statusScript, $gainScript, $prepareCodexScript, $taskFile, $windowsPowerShell)) {
+foreach ($required in @($startScript, $stopScript, $statusScript, $gainScript, $prepareCodexScript, $windowsPowerShell)) {
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "A fixed Discodex Relay prerequisite is missing." }
 }
-$threadId = (Get-Content -Raw -LiteralPath $taskFile).Trim()
-if ($threadId -notmatch '^[0-9a-f-]{20,}$') { throw 'The fixed Codex task configuration is invalid.' }
 
 if ($Probe) {
-  [pscustomobject]@{ ready = $true; mutation = $false; secretOutput = $false; identifierOutput = $false } | ConvertTo-Json -Compress
+  $configured = Test-Path -LiteralPath $taskFile -PathType Leaf
+  [pscustomobject]@{ ready = $configured; configurationRequired = -not $configured; mutation = $false; secretOutput = $false; identifierOutput = $false } | ConvertTo-Json -Compress
   return
 }
+
+if (-not (Test-Path -LiteralPath $taskFile -PathType Leaf)) { throw 'The fixed Codex task configuration is missing.' }
+$threadId = (Get-Content -Raw -LiteralPath $taskFile).Trim()
+if ($threadId -notmatch '^[0-9a-f-]{20,}$') { throw 'The fixed Codex task configuration is invalid.' }
 
 $createdNew = $false
 $mutex = [Threading.Mutex]::new($true, 'Local\DiscodexRelayApplication', [ref]$createdNew)

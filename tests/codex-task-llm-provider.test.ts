@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { CurrentCodexTaskLlmProvider } from "../src/core/codex-task-llm-provider.ts";
 import type { CodexAppServerNotification, CodexAppServerRpcTransport } from "../src/core/codex-audio-route.ts";
+import { TEST_CODEX_TASK_ID_1 } from "./fixtures/public-identities.mjs";
 
-const THREAD_ID = "REDACTED_CODEX_TASK_ID_1";
+const THREAD_ID = TEST_CODEX_TASK_ID_1;
 
 class MockTaskRpc implements CodexAppServerRpcTransport {
   readonly requests: Array<{ method: string; params: unknown }> = [];

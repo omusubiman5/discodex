@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { selectIdentityScopedTargets } from "../scripts/route-target-scope.mjs";
+import { TEST_CODEX_TASK_ID_3 } from "./fixtures/public-identities.mjs";
 
 const script = resolve(dirname(fileURLToPath(import.meta.url)), "../scripts/inspect-codex-realtime-audio-route.mjs");
 
@@ -30,14 +31,14 @@ test("route scope fails closed without task identity and does not open unrelated
 
 test("identity scope selects the owned main and optional voice overlay without assuming thread ID metadata", () => {
   const targets = Array.from({ length: 7 }, (_, i) => ({ type: "page", id: `target-${i}`, url: i === 3 ? "app://-/index.html" : `app://other/${i}`, webSocketDebuggerUrl: `ws://fixture/${i}` }));
-  const selected = selectIdentityScopedTargets(targets, "REDACTED_CODEX_TASK_ID_3");
+  const selected = selectIdentityScopedTargets(targets, TEST_CODEX_TASK_ID_3);
   assert.equal(selected.length, 1);
   assert.equal(selected[0].id, "target-3");
-  const withOverlay = selectIdentityScopedTargets([...targets, { type: "page", id: "voice-overlay", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/voice" }], "REDACTED_CODEX_TASK_ID_3");
+  const withOverlay = selectIdentityScopedTargets([...targets, { type: "page", id: "voice-overlay", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/voice" }], TEST_CODEX_TASK_ID_3);
   assert.deepEqual(withOverlay.map((target) => target.id), ["voice-overlay"]);
   assert.equal(selectIdentityScopedTargets(targets, "" ).length, 0);
-  assert.equal(selectIdentityScopedTargets([...targets, { type: "page", id: "duplicate", url: "app://-/index.html", webSocketDebuggerUrl: "ws://fixture/duplicate" }], "REDACTED_CODEX_TASK_ID_3").length, 0);
-  assert.equal(selectIdentityScopedTargets([...targets, { type: "page", id: "overlay-a", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/a" }, { type: "page", id: "overlay-b", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/b" }], "REDACTED_CODEX_TASK_ID_3").length, 0);
+  assert.equal(selectIdentityScopedTargets([...targets, { type: "page", id: "duplicate", url: "app://-/index.html", webSocketDebuggerUrl: "ws://fixture/duplicate" }], TEST_CODEX_TASK_ID_3).length, 0);
+  assert.equal(selectIdentityScopedTargets([...targets, { type: "page", id: "overlay-a", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/a" }, { type: "page", id: "overlay-b", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/b" }], TEST_CODEX_TASK_ID_3).length, 0);
 });
 
 test("route source contains identity-first scope and bounded restore retry", async () => {

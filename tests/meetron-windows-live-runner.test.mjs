@@ -6,14 +6,15 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { acquireLiveCallProcessLock } from "../src/discord-gateway-smoke.ts";
 import { createSupportedStopWatcher, expectedSessionIdentityForThread, LiveTurnCausalTracker, loadMeetronWindowsLiveConfiguration } from "../scripts/run-meetron-windows-live.mjs";
+import { TEST_CODEX_TASK_ID_2, TEST_DISCORD_ID_7, TEST_DISCORD_ID_9 } from "./fixtures/public-identities.mjs";
 
 const complete = {
-  CODEX_THREAD_ID: "REDACTED_CODEX_TASK_ID_2",
+  CODEX_THREAD_ID: TEST_CODEX_TASK_ID_2,
   CODEX_DESKTOP_DEBUGGER_ENDPOINT: "http://127.0.0.1:52895",
   CODEX_BRIDGE_CODEX_DESKTOP_PID: "16340",
   CODEX_BRIDGE_VB_CABLE_RENDER_ENDPOINT_ID: "{0.0.0.00000000}.{00000000-0000-0000-0000-000000000001}",
-  CODEX_BRIDGE_DISCORD_GUILD_ID: "REDACTED_DISCORD_ID_7",
-  CODEX_BRIDGE_DISCORD_VOICE_CHANNEL_ID: "REDACTED_DISCORD_ID_9",
+  CODEX_BRIDGE_DISCORD_GUILD_ID: TEST_DISCORD_ID_7,
+  CODEX_BRIDGE_DISCORD_VOICE_CHANNEL_ID: TEST_DISCORD_ID_9,
 };
 
 test("Windows Meetron runner requires the exact current Codex task and Discord identities", () => {
