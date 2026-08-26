@@ -4,7 +4,8 @@ import { redact } from "../src/core/redaction.ts";
 import { TEST_DISCORD_ID_5 } from "./fixtures/public-identities.mjs";
 
 test("redacts Discord-like secrets, IDs, and Meet URLs", () => {
-  const input = `REDACTED_DISCORD_TOKEN user ${TEST_DISCORD_ID_5} https://meet.google.com/abc-defg-hij`;
+  const syntheticToken = ["mfa", "abcdefghijklmnopqrstuvwxyz0123456789"].join(".");
+  const input = `${syntheticToken} user ${TEST_DISCORD_ID_5} https://meet.google.com/abc-defg-hij`;
   const output = redact(input);
   assert.doesNotMatch(output, /mfa\./);
   assert.equal(output.includes(TEST_DISCORD_ID_5), false);
