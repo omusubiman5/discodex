@@ -24,8 +24,11 @@
 | --- | --- | --- |
 | 🪟 Windows | ✅ 対応 | Discord制御、Codex Desktop接続、VB-CABLE音声経路、Relay UI、実通話ランナー |
 | 🍎 macOS | 🚧 部分対応 | Keychain、ffmpeg Opus/PCM adapter、POSIX native-addon loader、共通コア |
+| 🐧 Ubuntu | ⏳ 予定 | GPT Live（Work / Codex Voice）のUbuntu公式対応後に開発・実機検証予定 |
 
 macOSの部品と自動テストは実装済みですが、Core Audio実通話ランナーとMac実機E2Eは未完了です。現時点では「WindowsとMacの完全対応」とは表記しません。
+
+Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在GPT Live（Work / Codex Voice）はUbuntu/Linux向けの公式デスクトップ機能として提供されていません。そのため、DiscodexのUbuntu版は現時点では未対応です。[OpenAIによるUbuntu対応](https://help.openai.com/en/articles/20001275/)後に、音声経路の実装と実機E2E検証を開始します。
 
 ## 🔁 動作の流れ
 
@@ -45,6 +48,7 @@ macOSの部品と自動テストは実装済みですが、Core Audio実通話�
 - Codex Desktopと対象のVoice Talkタスク
 - 🪟 Windows: VB-CABLE、ffmpeg、PowerShell
 - 🍎 macOS: ffmpeg、Keychain（実通話ランナーは開発中）
+- 🐧 Ubuntu: GPT Live（Work / Codex Voice）の公式対応待ち。現時点ではサポート対象外
 
 ## 🛠️ インストール
 

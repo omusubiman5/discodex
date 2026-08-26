@@ -24,8 +24,11 @@ Discodex is a local voice bridge that lets you **call GPT Live (Codex Voice) fro
 | --- | --- | --- |
 | 🪟 Windows | ✅ Supported | Discord controls, Codex Desktop attachment, VB-CABLE routing, Relay UI, and live-call runner |
 | 🍎 macOS | 🚧 Partial | Keychain, ffmpeg Opus/PCM adapter, POSIX native-addon loader, and shared core |
+| 🐧 Ubuntu | ⏳ Planned | Development and real-device validation will begin after GPT Live (Voice in Work/Codex) officially supports Ubuntu |
 
 The macOS components and automated tests are implemented, but the Core Audio live-call runner and real-Mac end-to-end acceptance are not complete. This release therefore does not claim full Windows and macOS support.
+
+The Discord/DAVE/Opus foundation is technically portable to Ubuntu, but GPT Live (Voice in Work/Codex) is not currently offered as an official Ubuntu/Linux desktop capability. Discodex therefore does not support Ubuntu yet. Linux audio routing and real E2E validation are planned after [official Ubuntu support becomes available](https://help.openai.com/en/articles/20001275/).
 
 ## 🔁 Data flow
 
@@ -45,6 +48,7 @@ The macOS components and automated tests are implemented, but the Core Audio liv
 - Codex Desktop and the target Voice Talk task
 - 🪟 Windows: VB-CABLE, ffmpeg, and PowerShell
 - 🍎 macOS: ffmpeg and Keychain; the live-call runner is still in development
+- 🐧 Ubuntu: waiting for official GPT Live (Voice in Work/Codex) support; currently unsupported
 
 ## 🛠️ Installation
 
