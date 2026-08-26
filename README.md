@@ -30,6 +30,13 @@ macOSの部品と自動テストは実装済みですが、Core Audio実通話�
 
 Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在GPT Live（Work / Codex Voice）はUbuntu/Linux向けの公式デスクトップ機能として提供されていません。そのため、DiscodexのUbuntu版は現時点では未対応です。[OpenAIによるUbuntu対応](https://help.openai.com/en/articles/20001275/)後に、音声経路の実装と実機E2E検証を開始します。確認済みの技術課題は[Ubuntu対応の課題一覧](docs/UBUNTU_SUPPORT_ISSUES.md)に記録しています。
 
+### 📱 スマートフォン実機確認
+
+- Android（Pixel）: Discordと同一Codex Voiceタスク間の双方向実通話を確認済み
+- iPhone（Discord公式iOS client）: Discord接続テストを2026-08-26に確認済み
+
+iPhoneの記載は接続確認の範囲です。Androidで行った複数往復や音声品質の受入を、未確認のiPhone結果へ拡張して扱いません。
+
 ## 🔁 動作の流れ
 
 ```text

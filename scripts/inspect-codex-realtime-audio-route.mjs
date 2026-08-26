@@ -311,6 +311,13 @@ for (const [targetIndex, target] of scopedTargets.entries()) {
           }
         }
         const graphAttached = Boolean(globalThis.__codexBridgeAudioGraphRollback);
+        const graphRollback = globalThis.__codexBridgeAudioGraphRollback;
+        const graphHealth = graphRollback ? {
+          graphContextState: graphRollback.context?.state ?? graphRollback.destination?.context?.state,
+          graphSourceTrackState: graphRollback.stream?.getAudioTracks?.()[0]?.readyState,
+          graphDestinationTrackState: graphRollback.graphTrack?.readyState,
+          graphSenderMatched: live.length === 1 && graphRollback.sender === live[0].sender && live[0].sender.track === graphRollback.graphTrack,
+        } : {};
         const targetApplied = mode === 'cable' ? after === 1 : mode === 'graph' ? after === 0 && graphAttached : (mode === 'physical' || mode === 'reconcile') ? after === 0 && !graphAttached : false;
         return {
           peers: peers.length, liveAudioSenders: live.length, cableDevices: cable.length, beforeCable: before, afterCable: after,
@@ -322,6 +329,7 @@ for (const [targetIndex, target] of scopedTargets.entries()) {
           mediaSourceAudioLevel, mediaSourceAudioEnergy,
           rollbackPrepared: Boolean(globalThis.__codexBridgeAudioRollback) || graphAttached,
           graphAttached, graphMode: globalThis.__codexBridgeAudioGraphRollback?.mode,
+          ...graphHealth,
         };
       }`,
       arguments: [
@@ -361,6 +369,10 @@ const report = {
   graphMatchingDestinations,
   graphAudioContexts,
   graphMode: candidates.map((candidate) => candidate.graphMode).find(Boolean),
+  graphContextState: candidates.map((candidate) => candidate.graphContextState).find(Boolean),
+  graphSourceTrackState: candidates.map((candidate) => candidate.graphSourceTrackState).find(Boolean),
+  graphDestinationTrackState: candidates.map((candidate) => candidate.graphDestinationTrackState).find(Boolean),
+  graphSenderMatched: candidates.length === 1 ? candidates[0].graphSenderMatched : undefined,
   trackEnabled: candidates.length === 1 ? candidates[0].trackEnabled : undefined,
   trackMuted: candidates.length === 1 ? candidates[0].trackMuted : undefined,
   peerConnectionState: candidates.length === 1 ? candidates[0].peerConnectionState : undefined,

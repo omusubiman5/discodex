@@ -54,7 +54,7 @@ $runners = @($nodes | Where-Object { $_.CommandLine -match 'run-meetron-windows-
 if ($controls.Count -gt 1) { throw 'Fail-closed: multiple Relay controls exist.' }
 if ($runners.Count -ne 0 -or (Test-Path -LiteralPath $lockPath)) { throw 'Disconnect Discord voice before preparing Codex Desktop.' }
 
-$roots = Get-CodexRoots
+$roots = @(Get-CodexRoots)
 if ($roots.Count -gt 1) { throw 'Fail-closed: multiple Codex Desktop roots exist.' }
 if (Test-CodexRouteReady $roots) {
   if ($controls.Count -eq 0) {
@@ -91,7 +91,8 @@ if ($roots.Count -eq 1) {
     Stop-Process -Id $rootPid -Force -ErrorAction Stop
     Wait-Process -Id $rootPid -Timeout 5 -ErrorAction SilentlyContinue
   }
-  if (Get-CodexRoots) { throw 'Codex Desktop did not stop within the bounded Relay-managed restart.' }
+  $remainingRoots = @(Get-CodexRoots)
+  if ($remainingRoots.Count -ne 0) { throw 'Codex Desktop did not stop within the bounded Relay-managed restart.' }
 }
 
 $listener = Get-NetTCPConnection -State Listen -LocalPort $debugPort -ErrorAction SilentlyContinue
@@ -107,7 +108,7 @@ try {
   $deadline = [DateTime]::UtcNow.AddSeconds(25)
   do {
     Start-Sleep -Milliseconds 250
-    $roots = Get-CodexRoots
+    $roots = @(Get-CodexRoots)
     $ready = Test-CodexRouteReady $roots
   } until ($ready -or [DateTime]::UtcNow -gt $deadline)
   if (-not $ready) { throw 'Codex Desktop did not expose the verified local audio attachment endpoint.' }
@@ -119,6 +120,7 @@ try {
   [pscustomobject]@{ ready = $true; restarted = ($roots.Count -eq 1); controlCount = 1; runnerCount = 0; lockPresent = $false; routePrepared = $true; secretOutput = $false; identifierOutput = $false } | ConvertTo-Json -Compress
 }
 catch {
-  if ($launched -and (Get-CodexRoots).Count -eq 0) { Start-Process -FilePath $executable | Out-Null }
+  $remainingRoots = @(Get-CodexRoots)
+  if ($launched -and $remainingRoots.Count -eq 0) { Start-Process -FilePath $executable | Out-Null }
   throw
 }

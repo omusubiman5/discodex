@@ -99,6 +99,8 @@ test("Relay owns Codex route preparation without exposing debugger settings to t
   assert.match(source, /\$startButton\.Text = if \(\$script:lastSnapshot\.routePrepared\) \{ 'Start Relay' \} else \{ 'Prepare Codex' \}/);
   assert.match(prepare, /--remote-debugging-address=127\.0\.0\.1/);
   assert.match(prepare, /--remote-debugging-port=\$debugPort/);
+  assert.match(prepare, /\$roots = @\(Get-CodexRoots\)/);
+  assert.match(prepare, /\$remainingRoots = @\(Get-CodexRoots\)/);
   assert.match(prepare, /CloseMainWindow\(\)/);
   assert.match(prepare, /\$ownedCodexPids = @\(/);
   assert.match(prepare, /Stop-Process -Id \$processId -Force/);

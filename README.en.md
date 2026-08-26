@@ -30,6 +30,13 @@ The macOS components and automated tests are implemented, but the Core Audio liv
 
 The Discord/DAVE/Opus foundation is technically portable to Ubuntu, but GPT Live (Voice in Work/Codex) is not currently offered as an official Ubuntu/Linux desktop capability. Discodex therefore does not support Ubuntu yet. Linux audio routing and real E2E validation are planned after [official Ubuntu support becomes available](https://help.openai.com/en/articles/20001275/). Confirmed technical gaps are tracked in the [Ubuntu support issue list](docs/UBUNTU_SUPPORT_ISSUES.md).
 
+### 📱 Real-device smartphone checks
+
+- Android (Pixel): bidirectional live voice between Discord and the same Codex Voice task verified
+- iPhone (official Discord iOS client): Discord connection test verified on 2026-08-26
+
+The iPhone statement is limited to connection verification. It does not extend the Android multi-turn or audio-quality acceptance to an untested iPhone scope.
+
 ## 🔁 Data flow
 
 ```text

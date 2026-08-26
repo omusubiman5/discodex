@@ -217,7 +217,11 @@ export async function runMeetronWindowsLive({ environment = process.env, signal,
         // DAVE setup. Keep `joined` false until onLiveCallReady fires after
         // the DAVE Execute transition and direct-audio startup complete.
         if (stage === "discord-voice-state-matched") observer?.({ state: "voice-state-matched", joined: false, targetMatched: true });
-        if (stage === "discord-voice-joined") observer?.({ state: "voice-ready", joined: true, targetMatched: gates.targetChannelMatched });
+        // Voice Opcode 2 Ready only supplies SSRC/UDP parameters. It is not
+        // media-ready while the required DAVE transition and direct-audio
+        // endpoint startup are still pending. Publish joined only from
+        // onLiveCallReady after those gates complete.
+        if (stage === "discord-voice-joined") observer?.({ state: "voice-ready", joined: false, targetMatched: gates.targetChannelMatched });
         if (stage === "reconnecting") observer?.({ state: "reconnecting", joined: false, targetMatched: gates.targetChannelMatched });
         if (stage === "discord-client-disconnected") observer?.({ state: "disconnected", joined: false, targetMatched: false });
         if (stage === "speaker-ssrc-mapped") gates.speakerSsrcMapped = true;

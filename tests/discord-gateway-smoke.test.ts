@@ -185,6 +185,16 @@ test("live turn gate flushes stale output and binds one response to one input se
   assert.deepEqual(gate.inputStarted(), { started: true, resumed: false, sequence: 2 });
 });
 
+test("a fresh Discord Speaking cycle cannot be absorbed by an unanswered confirmed turn", () => {
+  const gate = new LiveAudioTurnGate();
+  assert.deepEqual(gate.inputStarted(true), { started: true, resumed: false, sequence: 1 });
+  gate.inputEnded();
+  assert.deepEqual(gate.confirmInput(1), { confirmed: true, sequence: 1 });
+  assert.deepEqual(gate.inputStarted(), { started: false, resumed: true, sequence: 1 });
+  gate.inputEnded();
+  assert.deepEqual(gate.inputStarted(true), { started: true, resumed: false, sequence: 2 });
+});
+
 test("live output forwards scoped Codex speech without waiting for a conversation turn", () => {
   const gate = new LiveOutputSpeechGate();
   assert.deepEqual(gate.observe(true), { accept: true, started: true, ended: false });

@@ -109,9 +109,13 @@ export function createCodexCallInputRoute(
         throw new Error("The current Codex call input could not be attached reversibly.");
       }
       const graph = await inspect("--apply-cable-graph-input");
-      if (graph.applied !== true || graph.graphAttached !== true || graph.cableSenders !== 0) {
+      const graphHealthy = graph.graphContextState === "running"
+        && graph.graphSourceTrackState === "live"
+        && graph.graphDestinationTrackState === "live"
+        && graph.graphSenderMatched === true;
+      if (graph.applied !== true || graph.graphAttached !== true || graph.cableSenders !== 0 || !graphHealthy) {
         await inspect("--apply-physical-input").catch(() => undefined);
-        throw new Error("VB-CABLE could not be attached to the current Codex audio graph.");
+        throw new Error("VB-CABLE could not be attached to a healthy current Codex audio graph.");
       }
     },
     async restore() {

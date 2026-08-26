@@ -40,10 +40,10 @@ test("production Meetron runner delegates recovery to Voice Gateway without full
   assert.match(source, /maxReconnectAttempts:\s*0/);
 });
 
-test("production Meetron runner reports joined at Discord Voice Ready, not main voice-state handoff", async () => {
+test("production Meetron runner reports joined only after DAVE and direct-audio readiness", async () => {
   const source = await readFile(new URL("../scripts/run-meetron-windows-live.mjs", import.meta.url), "utf8");
   assert.match(source, /voice-state-matched", joined: false, targetMatched: true/);
-  assert.match(source, /voice-ready", joined: true, targetMatched: gates\.targetChannelMatched/);
+  assert.match(source, /voice-ready", joined: false, targetMatched: gates\.targetChannelMatched/);
   assert.match(source, /joined-ready", joined: true, targetMatched: gates\.targetChannelMatched/);
 });
 

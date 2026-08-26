@@ -267,8 +267,14 @@ export class LiveAudioTurnGate {
   #phase: "idle" | "input" | "wait-silence" | "armed" | "responding" = "idle";
   #confirmed = false;
 
-  inputStarted(): { readonly started: boolean; readonly resumed: boolean; readonly sequence: number } {
-    if (this.#phase === "input") return { started: false, resumed: false, sequence: this.#sequence };
+  inputStarted(newSpeakingCycle = false): { readonly started: boolean; readonly resumed: boolean; readonly sequence: number } {
+    if (!newSpeakingCycle && this.#phase === "input") return { started: false, resumed: false, sequence: this.#sequence };
+    if (newSpeakingCycle && this.#sequence > 0) {
+      this.#sequence += 1;
+      this.#confirmed = false;
+      this.#phase = "input";
+      return { started: true, resumed: false, sequence: this.#sequence };
+    }
     if (this.#phase === "wait-silence" || this.#phase === "armed") {
       this.#phase = "input";
       return { started: false, resumed: true, sequence: this.#sequence };
@@ -961,6 +967,7 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
       const recognizedUserIds = new Set<string>();
       const speakerUserIds = new Map<number, string>();
       const microphoneSpeakingSsrcs = new Set<number>();
+      const pendingSpeakingCycleSsrcs = new Set<number>();
       const lastSpeakerSsrcByUser = new Map<string, number>();
       const selectedReceiveRatchets = new Map<number, string>();
       let mediaTransport: DiscordAesRtpTransport | undefined;
@@ -1316,7 +1323,7 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
                                 const conversationInput = microphoneSpeakingSsrcs.has(ssrc);
                                 if (options.liveCallWait) options.onLiveInputLevel?.(inputLevel);
                                 if (options.liveCallWait && conversationInput) {
-                                  const gateInput = liveTurnGate.inputStarted();
+                                  const gateInput = liveTurnGate.inputStarted(pendingSpeakingCycleSsrcs.delete(ssrc));
                                   liveInputSequence = gateInput.sequence;
                                   if (gateInput.started || gateInput.resumed) {
                                     outputEpoch += 1;
@@ -1535,7 +1542,10 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
                 const id = (payload.d as { user_id?: unknown }).user_id;
                 if (typeof id === "string") {
                   recognizedUserIds.delete(id);
-                  for (const [ssrc, userId] of speakerUserIds) if (userId === id) microphoneSpeakingSsrcs.delete(ssrc);
+                  for (const [ssrc, userId] of speakerUserIds) if (userId === id) {
+                    microphoneSpeakingSsrcs.delete(ssrc);
+                    pendingSpeakingCycleSsrcs.delete(ssrc);
+                  }
                   resetParticipantMediaState(speakerUserIds, selectedReceiveRatchets, id);
                   if (id !== selfUserId) options.onLiveStage?.("discord-client-disconnected");
                 }
@@ -1548,12 +1558,20 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
                   const remapped = [...speakerUserIds].some(([previousSsrc, previousUserId]) =>
                     previousUserId === user_id && previousSsrc !== mediaSsrc);
                   if (remapped) {
-                    for (const [previousSsrc, previousUserId] of speakerUserIds) if (previousUserId === user_id) microphoneSpeakingSsrcs.delete(previousSsrc);
+                    for (const [previousSsrc, previousUserId] of speakerUserIds) if (previousUserId === user_id) {
+                      microphoneSpeakingSsrcs.delete(previousSsrc);
+                      pendingSpeakingCycleSsrcs.delete(previousSsrc);
+                    }
                     resetParticipantMediaState(speakerUserIds, selectedReceiveRatchets, user_id);
                   }
                   speakerUserIds.set(mediaSsrc, user_id);
-                  if (isDiscordMicrophoneSpeaking(speaking)) microphoneSpeakingSsrcs.add(mediaSsrc);
-                  else microphoneSpeakingSsrcs.delete(mediaSsrc);
+                  if (isDiscordMicrophoneSpeaking(speaking)) {
+                    if (!microphoneSpeakingSsrcs.has(mediaSsrc)) pendingSpeakingCycleSsrcs.add(mediaSsrc);
+                    microphoneSpeakingSsrcs.add(mediaSsrc);
+                  } else {
+                    microphoneSpeakingSsrcs.delete(mediaSsrc);
+                    pendingSpeakingCycleSsrcs.delete(mediaSsrc);
+                  }
                   if (options.liveCallWait && user_id !== selfUserId) {
                     const observed = observeSpeakerSsrc(lastSpeakerSsrcByUser, user_id, mediaSsrc);
                     options.onLiveStage?.(remapped ? "speaker-ssrc-remapped" : observed);

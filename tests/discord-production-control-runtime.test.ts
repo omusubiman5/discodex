@@ -37,7 +37,7 @@ test("route attach reconciles an orphaned CABLE sender before making a fresh rev
     { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: false },
     { liveAudioSenders: 1, cableSenders: 0, currentTrackLabel: "Physical microphone" },
     { applied: true, liveAudioSenders: 1, cableSenders: 1, previousTrackLabel: "Physical microphone" },
-    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true },
+    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true, graphContextState: "running", graphSourceTrackState: "live", graphDestinationTrackState: "live", graphSenderMatched: true },
   ];
   const route = createCodexCallInputRoute(async (...args) => {
     calls.push(args[0] ?? "inspect");
@@ -56,7 +56,7 @@ test("route attach reconciles a stale rollback marker after normal restore canno
     { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: false },
     { liveAudioSenders: 1, cableSenders: 0, currentTrackLabel: "Physical microphone" },
     { applied: true, liveAudioSenders: 1, cableSenders: 1, previousTrackLabel: "Physical microphone" },
-    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true },
+    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true, graphContextState: "running", graphSourceTrackState: "live", graphDestinationTrackState: "live", graphSenderMatched: true },
   ];
   const route = createCodexCallInputRoute(async (...args) => {
     calls.push(args[0] ?? "inspect");
@@ -74,7 +74,7 @@ test("fresh native Voice Talk gets exactly one sender-readiness readback without
     { liveAudioSenders: 0, cableSenders: 0 },
     { liveAudioSenders: 1, cableSenders: 0, currentTrackLabel: "physical" },
     { applied: true, liveAudioSenders: 1, cableSenders: 1, previousTrackLabel: "physical" },
-    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true },
+    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true, graphContextState: "running", graphSourceTrackState: "live", graphDestinationTrackState: "live", graphSenderMatched: true },
   ];
   const route = createCodexCallInputRoute(async (...args) => {
     calls.push(args[0] ?? "inspect");
@@ -82,6 +82,22 @@ test("fresh native Voice Talk gets exactly one sender-readiness readback without
   }, async () => "started");
   await route.attach();
   assert.deepEqual(calls, ["inspect", "inspect", "--apply-cable-input", "--apply-cable-graph-input"]);
+});
+
+test("route attach rolls back an unhealthy WebAudio graph before Discord starts", async () => {
+  const calls: string[] = [];
+  const reports = [
+    { liveAudioSenders: 1, cableSenders: 0, currentTrackLabel: "physical" },
+    { applied: true, liveAudioSenders: 1, cableSenders: 1, previousTrackLabel: "physical" },
+    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true, graphContextState: "suspended", graphSourceTrackState: "live", graphDestinationTrackState: "live", graphSenderMatched: true },
+    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: false },
+  ];
+  const route = createCodexCallInputRoute(async (...args) => {
+    calls.push(args[0] ?? "inspect");
+    return reports.shift() ?? {};
+  });
+  await assert.rejects(() => route.attach(), /healthy current Codex audio graph/);
+  assert.deepEqual(calls, ["inspect", "--apply-cable-input", "--apply-cable-graph-input", "--apply-physical-input"]);
 });
 
 test("production control composition starts one runner, observes join/match, and aborts only bridge-owned runner", async () => {
