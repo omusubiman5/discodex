@@ -131,8 +131,6 @@ npm run dry-run:discord
 
 token、Discord ID、招待URL、発話内容、音声dataはIssueやチャットへ貼らないでください。
 
-AIコミュニティへの紹介・Mac実機テスター募集には、📣 [Discord投稿用Markdown](docs/AI_COMMUNITY_DISCORD_POST.md) を利用できます。
-
 ## 💬 Discordコマンド
 
 | コマンド | 動作 |

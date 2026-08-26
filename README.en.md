@@ -131,8 +131,6 @@ When reporting results, include only:
 
 Never post tokens, Discord IDs, invite URLs, transcripts, or audio data in an issue or chat.
 
-For the AI-community announcement and Mac tester recruitment, use the 📣 [Discord post template](docs/AI_COMMUNITY_DISCORD_POST.md).
-
 ## 💬 Discord commands
 
 | Command | Behavior |
