@@ -2,10 +2,11 @@
 
 🌍 [English](README.en.md)
 
-Discordから、自宅・作業PCで動いている**現在のCodexタスク**を起動・接続・操作するためのローカル音声ブリッジです。独立したチャットボットではなく、DiscordをCodex Voiceの遠隔入口にします。📱↔️💻
+**スマホのDiscordから、自宅・作業PCのGPT Live（Codex Voice）を呼び出し、現在のCodexタスクを起動・接続・操作する**ためのローカル音声ブリッジです。独立したチャットボットではなく、DiscordをGPT Liveの遠隔入口にします。📱↔️💻
 
 ## 🌟 特徴
 
+- 📱 スマホのDiscordからGPT Live（Codex Voice）を呼び出す
 - 🚀 Discordの `/connect` からCodex Voiceを準備し、同じタスクへ接続
 - 🎛️ `/disconnect`、`/status`、`/gain` による限定された遠隔操作
 - 🔊 Discord音声をCodexへ渡し、Codexの応答を同じ通話へ返送

@@ -2,10 +2,11 @@
 
 🌸 [日本語](README.md)
 
-Discodex is a local voice bridge that lets you start, connect to, and operate the **current Codex task** on your home or workstation computer from Discord. It does not create a separate chatbot—Discord becomes a remote entry point to Codex Voice. 📱↔️💻
+Discodex is a local voice bridge that lets you **call GPT Live (Codex Voice) from Discord on your phone**, then start, connect to, and operate the current Codex task on your home or workstation computer. It does not create a separate chatbot—Discord becomes a remote entry point to GPT Live. 📱↔️💻
 
 ## 🌟 Highlights
 
+- 📱 Call GPT Live (Codex Voice) from Discord on your phone
 - 🚀 Prepare Codex Voice and attach to the same task with Discord `/connect`
 - 🎛️ Bounded remote controls through `/disconnect`, `/status`, and `/gain`
 - 🔊 Route Discord speech into Codex and return Codex audio to the same call
