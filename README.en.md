@@ -60,6 +60,8 @@ npm run preflight:discord
 
 For Windows production operation, see the 📘 [operations runbook](docs/DISCORD_VOICE_RUNBOOK.md) and ⚙️ [local Discord setup](docs/DISCORD_LOCAL_SETUP.md).
 
+For the AI-community announcement and Mac tester recruitment, use the 📣 [Discord post template](docs/AI_COMMUNITY_DISCORD_POST.md).
+
 ## 💬 Discord commands
 
 | Command | Behavior |

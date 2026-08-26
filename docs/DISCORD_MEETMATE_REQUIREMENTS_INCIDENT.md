@@ -1,5 +1,7 @@
 # Discord Meetmate requirements incident
 
+> **Document status:** Historical incident record. It is retained for traceability and is not the current product-status document. See [README](../README.md) for current capabilities and platform support.
+
 ## Incident boundary
 
 On 2026-08-23, approximately 00:12–15:xx JST, the project treated an independent Discord bot audio loop as product acceptance. That completion claim is withdrawn. The transport evidence remains useful only as a regression baseline and is **invalidated for product acceptance**.

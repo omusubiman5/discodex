@@ -1,5 +1,7 @@
 # Discord Voice 4006 fix report
 
+> **Document status:** Historical fix snapshot. Statements such as “not implemented” describe the state at the time of this report. See [README](../README.md) for current capabilities and platform support.
+
 ## Corrections
 
 - `--phase live-call` now exclusively owns `runtime/live-call.lock` before credential acquisition or network activity. A second runner fails locally with `A final Discord live-call runner is already active.` Stale ownership is recovered only when the recorded PID is dead; normal completion releases the owned lock.

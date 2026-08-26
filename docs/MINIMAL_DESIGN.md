@@ -143,7 +143,7 @@ MeetはMVPやfallback transportではありません。将来評価する場合�
 7. ユーザーはスマートフォンの携帯回線から同じvoice channelへ参加する。
 8. 「PM Codex」と呼びかけ、指示と応答を確認する。
 9. `disconnect`、ユーザー操作、期限、異常のいずれかで停止する。
-10. Discord送信遮断、voice退出、Codex Voice停止、音声設定復元の順で終了する。
+10. Discord送信遮断、voice退出、ブリッジ所有経路の停止、音声設定復元の順で終了する。既存のGPT Live（Codex Voice）タスク自体は停止しない。
 
 ## 8. 最小受け入れ試験
 

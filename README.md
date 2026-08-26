@@ -60,6 +60,8 @@ npm run preflight:discord
 
 Windowsの実運用は、📘 [運用Runbook](docs/DISCORD_VOICE_RUNBOOK.md) と ⚙️ [ローカル設定](docs/DISCORD_LOCAL_SETUP.md) を参照してください。
 
+AIコミュニティへの紹介・Mac実機テスター募集には、📣 [Discord投稿用Markdown](docs/AI_COMMUNITY_DISCORD_POST.md) を利用できます。
+
 ## 💬 Discordコマンド
 
 | コマンド | 動作 |

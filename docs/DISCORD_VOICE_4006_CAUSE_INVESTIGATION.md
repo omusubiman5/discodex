@@ -1,5 +1,7 @@
 # Discord Voice 4006 cause investigation
 
+> **Document status:** Historical investigation snapshot. It does not describe the current release status. See [README](../README.md) for current capabilities and platform support.
+
 ## Reproduction
 
 1. Start `node src/discord-gateway-smoke.ts --phase live-call` for the configured private target.
