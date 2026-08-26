@@ -7,7 +7,7 @@
 ## 専用Discord構成
 
 - 招待制の専用serverを1つ使用する。
-- `pm-voice`、`pm-command`、`pm-notify` を用途別に分ける。
+- voice channelとtransport control channelを用途別に分ける。開発作業の振り分けやプロジェクト通知には使用しない。
 - 指示を許可するDiscord user ID、guild ID、channel IDを明示allowlistにする。
 - botは通常メンバーを管理せず、対象channel以外を閲覧しない。
 - server/application/tokenの作成はローカルprobe合格後にユーザーが行う。
@@ -42,10 +42,10 @@ PM Codex output -> codexToRemote isolated endpoint
 
 ## テキスト制御
 
-- `/pm ask`: allowlistユーザーからの明示的な指示を現在のPM Codexへ渡す。
-- `/pm status`:音声経路、Codex task、session期限のredacted状態を返す。
-- `/pm stop`: audio送信を即時遮断してsession終了を開始する。
-- `pm-notify`: ready/degraded/stoppedだけを通知し、prompt/response本文は既定で保存しない。
+- `connect`: allowlistユーザーが明示的に音声transportを開始する。
+- `status`: 音声経路、Codex task、session期限のredacted状態を返す。
+- `disconnect`: audio送信を即時遮断してsession終了を開始する。
+- `gain`: 安全範囲内でCodexからDiscordへの出力gainを変更する。
 
 application commandを使い、一般message本文の監視を避けます。これにより広いMESSAGE_CONTENT intentをMVP要件にしません。
 
@@ -77,7 +77,7 @@ Windows x64とmacOS Apple Silicon/Intelで公式libdaveを固定commitからbuil
 
 ### P4: PM Codex E2E
 
-スマートフォンを携帯回線にし、allowlist userが20件の音声指示を実行する。誤作動時の `/pm stop`、bot切断、PCローカル停止を確認する。
+スマートフォンを携帯回線にし、allowlist userが20件の音声指示を実行する。誤作動時の `disconnect`、bot切断、PCローカル停止を確認する。
 
 ## 採否条件
 

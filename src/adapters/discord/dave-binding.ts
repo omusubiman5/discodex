@@ -13,7 +13,7 @@ export interface DaveSession {
   processWelcome(payload: Uint8Array, recognizedUserIds: readonly string[]): "accepted" | "failed";
   createKeyPackage(): Uint8Array;
   encryptOpus(ssrc: number, opusFrame: Uint8Array): Uint8Array;
-  decryptOpus(encryptedFrame: Uint8Array): Uint8Array;
+  decryptOpus(ssrc: number, encryptedFrame: Uint8Array): Uint8Array;
   destroy(): void;
 }
 

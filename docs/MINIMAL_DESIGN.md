@@ -126,7 +126,7 @@ MeetはMVPやfallback transportではありません。将来評価する場合�
 
 - Main Gateway、Voice Gateway v8、UDP/RTP、Opus、DAVE engineを別責務として分離する。
 - DAVE engineはDiscord公式libdaveだけを使用し、共通コアやmedia層で暗号を実装しない。
-- `/pm ask`、`/pm status`、`/pm stop` のapplication commandを制御面とする。
+- `connect`、`disconnect`、`status`、`gain` のapplication commandだけをtransport制御面とする。
 - guild/channel/user allowlistと最小bot権限を接続前に検証する。
 - Voice tokenとDAVE key materialを永続化せず、DAVE未確立時はaudioを送信しない。
 
@@ -142,7 +142,7 @@ MeetはMVPやfallback transportではありません。将来評価する場合�
 6. DAVEと音声分離の準備完了後だけaudio送信を有効にする。
 7. ユーザーはスマートフォンの携帯回線から同じvoice channelへ参加する。
 8. 「PM Codex」と呼びかけ、指示と応答を確認する。
-9. `/pm stop`、ユーザー操作、期限、異常のいずれかで停止する。
+9. `disconnect`、ユーザー操作、期限、異常のいずれかで停止する。
 10. Discord送信遮断、voice退出、Codex Voice停止、音声設定復元の順で終了する。
 
 ## 8. 最小受け入れ試験
@@ -164,7 +164,7 @@ WindowsとmacOSの各環境で同じ試験を実施します。
 
 - allowlistされたguild/channel/userだけが指示できる。
 - DAVEと分離の確認前はaudio送信が無効である。
-- `/pm stop` で2秒以内に出力が止まり、voiceから退出する。
+- `disconnect` で2秒以内に出力が止まり、voiceから退出する。
 
 ### Remote-01 外出フロー
 

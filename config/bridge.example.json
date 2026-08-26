@@ -22,7 +22,7 @@
     },
     "textCommands": {
       "mode": "application-commands",
-      "commandName": "pm",
+      "commandName": "voice",
       "persistUserPromptContent": false
     }
   },

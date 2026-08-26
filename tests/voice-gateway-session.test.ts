@@ -18,7 +18,7 @@ function createDaveMock(
     processWelcome: () => (calls.push("welcome"), results.welcome ?? "accepted"),
     createKeyPackage: () => new Uint8Array([1]),
     encryptOpus: (_ssrc, frame) => frame,
-    decryptOpus: (frame) => frame,
+    decryptOpus: (_ssrc, frame) => frame,
     destroy: () => calls.push("destroy"),
   };
 }

@@ -50,7 +50,7 @@ export class DiscordAdapter implements TransportAdapter {
         {
           id: "text-history",
           status: "planned",
-          detail: "Use /pm application commands and outbound project notifications without broad message-content collection.",
+          detail: "Use only bounded transport controls without message-content collection or development-work routing.",
         },
         {
           id: "token-storage",
@@ -89,8 +89,8 @@ export class DiscordAdapter implements TransportAdapter {
           mutation: "would-change-local",
         },
         {
-          id: "discord.text-command",
-          description: "Would accept allowlisted /pm commands and send bounded project notifications to the dedicated text channel.",
+          id: "discord.transport-controls",
+          description: "Would accept only allowlisted connect, disconnect, status, and gain controls.",
           risk: "blocked",
           network: "would-connect",
           mutation: "would-change-external",

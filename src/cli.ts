@@ -5,16 +5,31 @@ import type { TransportKind } from "./core/contracts.ts";
 import { SessionPlanner } from "./core/session.ts";
 import { redact } from "./core/redaction.ts";
 import { createAdapter } from "./adapters/index.ts";
+import { loadDependencyManifest } from "./dependencies/preflight.ts";
 
-interface Arguments {
+interface DryRunArguments {
   command: "dry-run";
   configPath: string;
   transport?: TransportKind;
 }
 
+interface DependenciesArguments {
+  command: "dependencies";
+  json: boolean;
+}
+
+type Arguments = DryRunArguments | DependenciesArguments;
+
 function parseArguments(argv: string[]): Arguments {
+  if (argv[0] === "dependencies") {
+    const options = argv.slice(1);
+    if (options.some((option) => option !== "--json")) {
+      throw new Error("The dependencies command accepts only --json.");
+    }
+    return { command: "dependencies", json: options.includes("--json") };
+  }
   if (argv[0] !== "dry-run") {
-    throw new Error("Only the dry-run command is available.");
+    throw new Error("Available commands: dry-run, dependencies.");
   }
   let configPath = "config/bridge.example.json";
   let transport: TransportKind | undefined;
@@ -38,6 +53,10 @@ function parseArguments(argv: string[]): Arguments {
 
 export async function run(argv: string[]): Promise<string> {
   const args = parseArguments(argv);
+  if (args.command === "dependencies") {
+    const manifest = loadDependencyManifest(resolve("."));
+    return `${JSON.stringify(manifest, null, args.json ? 2 : undefined)}\n`;
+  }
   const config = await loadConfig(resolve(args.configPath), args.transport);
   const adapter = createAdapter(config.transport);
   const planner = new SessionPlanner();

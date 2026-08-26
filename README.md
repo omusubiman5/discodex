@@ -1,87 +1,94 @@
-# Codex Discord Voice Bridge
+# 🎙️ Discodex — Codex Discord Voice Bridge ✨
 
-外出先のスマートフォンから、招待制Discord音声チャネルを経由して、自宅・作業PC上のPM Codexへ音声で指示するためのローカルブリッジです。Discordを唯一のMVP transportとし、Google Meetは共通境界を検証する将来adapter候補としてのみ残します。
+🌍 [English](README.en.md)
+
+Discordから、自宅・作業PCで動いている**現在のCodexタスク**を起動・接続・操作するためのローカル音声ブリッジです。独立したチャットボットではなく、DiscordをCodex Voiceの遠隔入口にします。📱↔️💻
+
+## 🌟 特徴
+
+- 🚀 Discordの `/connect` からCodex Voiceを準備し、同じタスクへ接続
+- 🎛️ `/disconnect`、`/status`、`/gain` による限定された遠隔操作
+- 🔊 Discord音声をCodexへ渡し、Codexの応答を同じ通話へ返送
+- 🧑‍🏫 Codexへ司会を頼み、議題進行・論点整理・要約を会話内で支援
+- 🔐 招待制サーバー、guild/channel/user allowlist、最小権限で接続範囲を限定
+- 🛡️ Discord公式 `libdave` を必須化し、平文fallbackや独自暗号を禁止
+- 🧼 token、Discord ID、発話本文をログへ残さないfail-closed設計
+- 🧵 既に開いているCodex Desktopの対象タスクへ接続し、別セッションへ逸脱しない
+
+> 📝 会議進行支援は可能ですが、複数話者の厳密な自動識別や議事録の自動保存は別機能です。
+
+## 🖥️ 対応状況
+
+| 環境 | 状態 | 内容 |
+| --- | --- | --- |
+| 🪟 Windows | ✅ 対応 | Discord制御、Codex Desktop接続、VB-CABLE音声経路、Relay UI、実通話ランナー |
+| 🍎 macOS | 🚧 部分対応 | Keychain、ffmpeg Opus/PCM adapter、POSIX native-addon loader、共通コア |
+
+macOSの部品と自動テストは実装済みですが、Core Audio実通話ランナーとMac実機E2Eは未完了です。現時点では「WindowsとMacの完全対応」とは表記しません。
+
+## 🔁 動作の流れ
 
 ```text
-Smartphone Discord
-          <-> transport adapter
-          <-> transport-neutral session core
-          <-> isolated OS audio adapter
-          <-> current PM Codex voice task
+📱 スマートフォンのDiscord
+  ↕ Discord Voice / DAVE
+🌉 Discodex（PC/Mac上のローカルブリッジ）
+  ↕ OS音声adapter + Codex Desktop接続
+🤖 現在のCodex Voiceタスク
 ```
 
-## 現在できること
+## 📦 必要条件
 
-- 共通のsession/config/policy契約からDiscordの接続計画を生成する
-- 将来候補のMeet adapterが同じcontractへ適合できることをdry-runだけで確認する
-- Discordの最小権限、Voice Gateway v8、DAVE必須条件を検査する
-- 明示開始/停止だけを許可するsession lifecycleを実行する
-- guild/channel/user allowlistと過剰bot権限を拒否する
-- Discord ID、token、発話本文を含めない構造化監査イベントを生成する
-- 実token、実ID、外部socket、音声デバイス変更を一切使わないdry-runを実行する
-- 秘密値らしい設定キー、loopback外CDP、平文fallback、prompt本文保存を拒否する
-- ローカル契約テストで安全境界を確認する
+- Node.js 26以降
+- Discord botと招待制Discordサーバー
+- Discord公式DAVE対応のnative addon
+- Codex Desktopと対象のVoice Talkタスク
+- 🪟 Windows: VB-CABLE、ffmpeg、PowerShell
+- 🍎 macOS: ffmpeg、Keychain（実通話ランナーは開発中）
 
-まだ外部接続、Discord server/application作成、bot token発行、音声I/O、Codex操作、常時参加は実装していません。
+## 🛠️ セットアップ
 
-## ローカル検証
-
-Node.js 24以降で実行します。依存packageのinstallは不要です。
+秘密情報をリポジトリへ保存しないでください。WindowsではDPAPI、macOSではKeychainを使用します。🔑
 
 ```powershell
-cd C:\Projects\codex-discord-voice-bridge
+git clone <repository-url>
+cd codex-discord-voice-bridge
+npm ci
 npm test
 npm run preflight:discord
+```
+
+Windowsの実運用は、📘 [運用Runbook](docs/DISCORD_VOICE_RUNBOOK.md) と ⚙️ [ローカル設定](docs/DISCORD_LOCAL_SETUP.md) を参照してください。
+
+## 💬 Discordコマンド
+
+| コマンド | 動作 |
+| --- | --- |
+| `/connect` | 許可済み音声チャネルからCodex Voiceへ接続 |
+| `/disconnect` | ブリッジ所有の経路だけを安全に切断 |
+| `/status` | 接続、音声経路、DAVEの状態を表示 |
+| `/gain` | 許可範囲内で返送音量を調整 |
+
+## 🧪 検証
+
+```powershell
+npm test
+npm run test:acceptance
+npm run preflight:discord
 npm run dry-run:discord
-npm run dry-run:meet
 ```
 
-dry-runは常に `blocked` で終了し、未実装の外部接続と実設定をblockerとして表示するのが正常です。
+自動テストは秘密情報や外部socketを使わず、安全境界、Discord制御、DAVE、音声codec、Windows Relay、macOS adapterを検証します。実通話の受入完了には対象OS上でのE2E証跡が必要です。
 
-## 構成
+## 🔒 セキュリティ境界
 
-```text
-src/core/                 transport非依存の契約・設定・session・redaction
-src/adapters/discord/     Discord計画とDAVE fail-closed policy
-src/adapters/meet/        将来候補のGoogle Meet adapter境界
-config/                   秘密を含まない設定template
-tests/                    外部接続を使わない契約試験
-docs/                     方針・設計・安全境界・PoC判断
-```
+- bot tokenを設定ファイル、ログ、Gitへ保存しない
+- Discord ID、招待URL、音声、発話本文を監査ログへ出さない
+- allowlist外のguild、channel、userからの操作を拒否
+- DAVE無効化、平文fallback、別AIセッションへの代替を拒否
+- ブリッジ停止時はCodex Desktop本体や現在のタスクを終了しない
 
-OS固有の音声入出力、仮想デバイス、権限、配布は将来の `platform/windows` と `platform/macos` adapterへ閉じ込めます。共通コアはWASAPI、Core Audio、ドライバー、Keychain、Credential Managerを直接呼びません。
+詳細は🛡️ [安全境界](docs/SAFETY_BOUNDARIES.md)を参照してください。
 
-## Discord最小PoC
+## 📜 ライセンス
 
-主経路は `スマートフォン -> 専用招待制Discord voice channel -> PC bot participant -> PM Codex` です。テキストは `/pm ask`、`/pm status`、`/pm stop` のapplication commandと、専用通知channelへの状態通知だけを対象にします。任意message本文の監視は行いません。
-
-DAVE暗号処理にはDiscord公式 [`discord/libdave`](https://github.com/discord/libdave) だけを第一候補として条件付き採用します。独自暗号、DAVE無効化、平文fallbackは禁止です。libdaveは完全なDiscord voice clientではないため、Voice Gateway、UDP/RTP、Opus、jitter bufferは別層で必要です。Nodeから公式C APIを薄いnative addonで呼ぶ案を優先し、公式WASMのNode適合は並行検証候補です。
-
-詳細: [Discord PoC](docs/DISCORD_POC.md) / [DAVE評価](docs/DAVE_EVALUATION.md)
-
-## 設定と秘密情報
-
-- `config/bridge.example.json` はplaceholderだけを含む。
-- `.env.example` は変数名だけで、token値を置かない。
-- 将来のbot tokenはWindows Credential Manager/DPAPIまたはmacOS Keychainへ保存する。
-- token、Discord snowflake、招待URL、Meet URL、発話本文をログへ出さない。
-- Discord user/guild/channelは明示allowlistで照合する。
-
-## 文書
-
-- [プロジェクト方針](docs/PROJECT_POLICY.md)
-- [最小設計](docs/MINIMAL_DESIGN.md)
-- [安全境界](docs/SAFETY_BOUNDARIES.md)
-- [Discord最小PoC](docs/DISCORD_POC.md)
-- [公式libdave評価](docs/DAVE_EVALUATION.md)
-- [Discordローカル設定](docs/DISCORD_LOCAL_SETUP.md)
-
-## ステータス
-
-- フェーズ: 共通コア実装済み、Discord実接続前
-- 外部接続・公開: なし
-- 資格情報設定: なし
-- 実音声・常時参加: なし
-- Discord DAVE判断: 公式libdaveを条件付き採用、Node統合probe待ち
-- Gateway進捗: Identify、Gateway Ready、Voice State/Server両event待機をpure state machineとして実装済み
-- Meetron: GPL-3.0-onlyの参考実装に限定し、コードを取り込まない
+第三者コンポーネントとライセンスは[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)に記載しています。

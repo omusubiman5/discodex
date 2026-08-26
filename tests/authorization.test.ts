@@ -29,7 +29,7 @@ test("Discord command requires exact guild, channel, and user allowlist matches"
     guildId: config.guildId,
     channelId: config.textChannelId,
     userId: "UNLISTED_USER",
-    command: "ask",
+    command: "connect",
   });
   assert.deepEqual(rejected, { allowed: false, reason: "user-not-allowed" });
 });
@@ -49,7 +49,7 @@ test("authorization audit contains a class and reason but no Discord IDs", async
     guildId: config.guildId,
     channelId: config.textChannelId,
     userId: "UNLISTED_USER",
-    command: "stop",
+    command: "disconnect",
   }, audit, "active");
   const serialized = JSON.stringify(audit.snapshot());
   assert.match(serialized, /user-not-allowed/);

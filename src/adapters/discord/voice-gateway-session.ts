@@ -199,9 +199,9 @@ export class DiscordVoiceGatewaySession {
     return this.#dave.encryptOpus(ssrc, opusFrame);
   }
 
-  decryptOpus(encryptedFrame: Uint8Array): Uint8Array {
+  decryptOpus(ssrc: number, encryptedFrame: Uint8Array): Uint8Array {
     if (this.#state !== "active") throw new Error(`Audio receive is forbidden in ${this.#state}; DAVE is not active.`);
-    return this.#dave.decryptOpus(encryptedFrame);
+    return this.#dave.decryptOpus(ssrc, encryptedFrame);
   }
 
   close(): void {

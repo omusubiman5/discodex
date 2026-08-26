@@ -2,6 +2,8 @@
 
 この手順は外部Discord設定を行う段階で使用します。tokenをチャット、issue、JSON、command lineへ貼り付けません。
 
+運用全体の入口は `DISCORD_VOICE_RUNBOOK.md` です。本書はDiscordローカル設定の詳細だけを担当します。
+
 ## 現在実行できるtoken不要検査
 
 ```powershell

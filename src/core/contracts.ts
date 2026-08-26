@@ -94,13 +94,13 @@ export interface DryRunReport {
   plan: TransportPlan;
 }
 
-export type PmCommand = "ask" | "status" | "stop";
+export type TransportCommand = "connect" | "disconnect" | "status" | "gain";
 
 export interface CommandContext {
   guildId: string;
   channelId: string;
   userId: string;
-  command: PmCommand;
+  command: TransportCommand;
 }
 
 export interface AuthorizationDecision {

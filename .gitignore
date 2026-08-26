@@ -6,16 +6,18 @@ config/bridge.local.json
 runtime/
 logs/
 coverage/
-work/
+outputs/
+dist/
+%SystemDrive%/
+assets/tts-cache/
+work/*
+!work/node-native-binding-probe/
+work/node-native-binding-probe/*
+!work/node-native-binding-probe/CMakeLists.txt
+!work/node-native-binding-probe/probe.cpp
+!work/node-native-binding-probe/load-probe.cjs
 *.log
 *.pem
 *.key
 *.p12
 *.pfx
-
-# Beads / Dolt files (added by bd init)
-.dolt/
-*.db
-.beads-credential-key
-.beads/proxieddb/
-*.gate.lock*
