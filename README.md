@@ -63,7 +63,7 @@ iPhoneの記載は接続確認の範囲です。Androidで行った複数往復�
 
 ```powershell
 git clone https://github.com/omusubiman5/discodex.git
-cd codex-discord-voice-bridge
+cd discodex
 npm ci
 npm test
 npm run preflight:discord
@@ -124,7 +124,7 @@ macOS 13+（Apple Silicon / Intel）は現在、**公開試験中**です。共�
 
 ```zsh
 git clone https://github.com/omusubiman5/discodex.git
-cd codex-discord-voice-bridge
+cd discodex
 npm ci
 npm test
 npm run test:acceptance

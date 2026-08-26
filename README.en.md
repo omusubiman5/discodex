@@ -63,7 +63,7 @@ Never store secrets in the repository. Production credentials use DPAPI on Windo
 
 ```powershell
 git clone https://github.com/omusubiman5/discodex.git
-cd codex-discord-voice-bridge
+cd discodex
 npm ci
 npm test
 npm run preflight:discord
@@ -124,7 +124,7 @@ Start with non-connecting checks:
 
 ```zsh
 git clone https://github.com/omusubiman5/discodex.git
-cd codex-discord-voice-bridge
+cd discodex
 npm ci
 npm test
 npm run test:acceptance
