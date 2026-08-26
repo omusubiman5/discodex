@@ -50,6 +50,12 @@ async function inspectTarget(target, index) {
           domAudioElements: document.querySelectorAll('audio').length,
           domLiveAudioTracks: [...document.querySelectorAll('audio')].flatMap((element) => [...(element.srcObject?.getAudioTracks?.() ?? [])]).filter((track) => track.readyState === 'live').length,
         mediaDevices: Boolean(navigator.mediaDevices)
+        , taskIdentityMatched: (() => {
+          const activeThreadKey = document.querySelector('[data-above-composer-conversation-id]')?.getAttribute('data-above-composer-conversation-id')
+            ?? document.querySelector('[data-app-action-sidebar-thread-id][data-app-action-sidebar-thread-active="true"]')?.getAttribute('data-app-action-sidebar-thread-id')
+            ?? document.querySelector('[data-app-action-sidebar-thread-id][aria-current="page"]')?.getAttribute('data-app-action-sidebar-thread-id');
+          return activeThreadKey === ${JSON.stringify(taskIdentity)};
+        })()
         , voiceActive: [...document.querySelectorAll("button,[role=button]")].some((element) => {
           const label = [element.getAttribute("aria-label"), element.getAttribute("title"), element.getAttribute("data-testid")].filter(Boolean).join(" ");
           return /(end|stop).*(voice|call)|(voice|call).*(end|stop)|音声チャットを終了|通話を終了|マイク.*ミュート/i.test(label);
@@ -62,6 +68,7 @@ async function inspectTarget(target, index) {
       let peerInstances = 0;
       let livePeerAudioSenders = 0;
       let livePeerAudioReceivers = 0;
+      let livePeerAudioReceiversEnabled = 0;
       let liveAudioTracks = 0;
       if (value.hasRtc && !presenceOnly) {
         const prototype = await call("Runtime.evaluate", { contextId: context.id, expression: "RTCPeerConnection.prototype" });
@@ -76,6 +83,7 @@ async function inspectTarget(target, index) {
                   peerInstances: this.length,
                   livePeerAudioSenders: peers.flatMap((peer) => peer.getSenders()).filter((sender) => sender.track?.kind === 'audio' && sender.track.readyState === 'live').length,
                   livePeerAudioReceivers: peers.flatMap((peer) => peer.getReceivers()).filter((receiver) => receiver.track?.kind === 'audio' && receiver.track.readyState === 'live').length,
+                  livePeerAudioReceiversEnabled: peers.flatMap((peer) => peer.getReceivers()).filter((receiver) => receiver.track?.kind === 'audio' && receiver.track.readyState === 'live' && receiver.track.enabled).length,
                   transceivers: peers.flatMap((peer) => peer.getTransceivers()).map((transceiver) => ({
                     direction: transceiver.direction,
                     currentDirection: transceiver.currentDirection,
@@ -90,6 +98,7 @@ async function inspectTarget(target, index) {
             peerInstances = peers.result.value?.peerInstances ?? 0;
             livePeerAudioSenders = peers.result.value?.livePeerAudioSenders ?? 0;
             livePeerAudioReceivers = peers.result.value?.livePeerAudioReceivers ?? 0;
+            livePeerAudioReceiversEnabled = peers.result.value?.livePeerAudioReceiversEnabled ?? 0;
           }
         }
       }
@@ -112,11 +121,13 @@ async function inspectTarget(target, index) {
         peerInstances,
         livePeerAudioSenders,
         livePeerAudioReceivers,
+        livePeerAudioReceiversEnabled,
         liveAudioTracks,
         domAudioElements: value.domAudioElements,
         domLiveAudioTracks: value.domLiveAudioTracks,
         mediaDevices: value.mediaDevices,
         voiceActive: value.voiceActive === true,
+        taskIdentityMatched: value.taskIdentityMatched === true,
       });
     }
     return {
@@ -127,11 +138,13 @@ async function inspectTarget(target, index) {
       peerInstances: contextReports.reduce((sum, report) => sum + report.peerInstances, 0),
       livePeerAudioSenders: contextReports.reduce((sum, report) => sum + report.livePeerAudioSenders, 0),
       livePeerAudioReceivers: contextReports.reduce((sum, report) => sum + report.livePeerAudioReceivers, 0),
+      livePeerAudioReceiversEnabled: contextReports.reduce((sum, report) => sum + report.livePeerAudioReceiversEnabled, 0),
       liveAudioTracks: contextReports.reduce((sum, report) => sum + report.liveAudioTracks, 0),
       domAudioElements: Math.max(0, ...contextReports.map((report) => report.domAudioElements)),
       domLiveAudioTracks: Math.max(0, ...contextReports.map((report) => report.domLiveAudioTracks)),
       hasMediaDevicesContext: contextReports.some((report) => report.mediaDevices),
       voiceActive: contextReports.some((report) => report.voiceActive),
+      taskIdentityMatched: contextReports.some((report) => report.taskIdentityMatched),
     };
   } finally {
     socket.close();
@@ -148,8 +161,10 @@ console.log(JSON.stringify({
   targets: reports,
   totalLivePeerAudioSenders: reports.reduce((sum, report) => sum + (report.livePeerAudioSenders ?? 0), 0),
   totalLivePeerAudioReceivers: reports.reduce((sum, report) => sum + (report.livePeerAudioReceivers ?? 0), 0),
+  totalLivePeerAudioReceiversEnabled: reports.reduce((sum, report) => sum + (report.livePeerAudioReceiversEnabled ?? 0), 0),
   totalLiveAudioTracks: reports.reduce((sum, report) => sum + (report.liveAudioTracks ?? 0), 0),
   voiceActive: reports.some((report) => report.voiceActive === true),
+  taskIdentityMatched: reports.some((report) => report.taskIdentityMatched === true),
   secretOutput: false,
   identifierOutput: false,
 }));

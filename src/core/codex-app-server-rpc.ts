@@ -362,7 +362,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
    * Taps the one already-connected foreground WebRTC receiver. This does not
    * create, start, stop, renegotiate, or replace a realtime peer/track.
    */
-  async attachExistingRealtimeOutput(): Promise<{ peers: number; liveAudioReceivers: number; sampleRate: number; channels: number }> {
+  async attachExistingRealtimeOutput(): Promise<{ peers: number; liveAudioReceivers: number; sampleRate: number; channels: number; localPlaybackSuppressed: boolean }> {
     if (!this.#connected) throw new Error("Codex Desktop transport is not connected.");
     if (this.#directSocket) throw new Error("Codex direct WebRTC output is already attaching or attached.");
     const overlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
@@ -418,6 +418,8 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
       objectId: owner.peersId,
       functionDeclaration: `async function(directOutputName, bindingName) {
         const prior = globalThis[directOutputName];
+        try { if (prior?.receiverTrack) prior.receiverTrack.enabled = prior.receiverTrackEnabled; } catch {}
+        try { prior?.tapTrack?.stop(); } catch {}
         try { prior?.source?.disconnect(); } catch {}
         try { prior?.processor?.disconnect(); } catch {}
         try { prior?.silent?.disconnect(); } catch {}
@@ -429,9 +431,17 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
         if (peers.length !== 1 || receivers.length !== 1) {
           return { attached: false, category: 'receiver-identity', peers: peers.length, liveAudioReceivers: receivers.length };
         }
+        const receiverTrack = receivers[0].track;
+        const receiverTrackEnabled = receiverTrack.enabled;
+        const tapTrack = receiverTrack.clone();
+        if (!tapTrack || tapTrack.readyState !== 'live') return { attached: false, category: 'receiver-clone' };
+        // The clone retains the remote source for Discord while the original
+        // track is silenced only for Codex's local playback graph. Detach
+        // restores the exact prior enabled state.
+        receiverTrack.enabled = false;
         const context = new AudioContext({ sampleRate: 48000 });
         await context.resume();
-        const source = context.createMediaStreamSource(new MediaStream([receivers[0].track]));
+        const source = context.createMediaStreamSource(new MediaStream([tapTrack]));
         const processor = context.createScriptProcessor(2048, 2, 2);
         const silent = context.createGain();
         silent.gain.value = 0;
@@ -459,22 +469,22 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
         source.connect(processor);
         processor.connect(silent);
         silent.connect(context.destination);
-        globalThis[directOutputName] = { source, processor, silent, context };
-        return { attached: true, peers: peers.length, liveAudioReceivers: receivers.length, sampleRate: context.sampleRate, channels: 2 };
+        globalThis[directOutputName] = { receiverTrack, receiverTrackEnabled, tapTrack, source, processor, silent, context };
+        return { attached: true, peers: peers.length, liveAudioReceivers: receivers.length, sampleRate: context.sampleRate, channels: 2, localPlaybackSuppressed: receiverTrack.enabled === false };
       }`,
       arguments: [{ value: this.#directOutputName }, { value: DESKTOP_BINDING }],
       awaitPromise: true,
       returnByValue: true,
     });
     const value = (response.result?.result as { value?: unknown } | undefined)?.value as {
-      attached?: unknown; category?: unknown; peers?: unknown; liveAudioReceivers?: unknown; sampleRate?: unknown; channels?: unknown;
+      attached?: unknown; category?: unknown; peers?: unknown; liveAudioReceivers?: unknown; sampleRate?: unknown; channels?: unknown; localPlaybackSuppressed?: unknown;
     } | undefined;
-    if (value?.attached !== true || value.peers !== 1 || value.liveAudioReceivers !== 1 || value.sampleRate !== 48_000 || value.channels !== 2) {
+    if (value?.attached !== true || value.peers !== 1 || value.liveAudioReceivers !== 1 || value.sampleRate !== 48_000 || value.channels !== 2 || value.localPlaybackSuppressed !== true) {
       const category = typeof value?.category === "string" ? value.category : "direct-output-attach";
       throw new Error(`Codex direct WebRTC output attachment failed [${category}].`);
     }
     this.#directOutputContextId = owner.contextId;
-    return { peers: 1, liveAudioReceivers: 1, sampleRate: 48_000, channels: 2 };
+    return { peers: 1, liveAudioReceivers: 1, sampleRate: 48_000, channels: 2, localPlaybackSuppressed: true };
   }
 
   async detachExistingRealtimeOutput(): Promise<void> {
@@ -484,7 +494,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
     try {
       if (contextId !== undefined) await this.#directCdp("Runtime.evaluate", {
         contextId,
-        expression: `(async () => { const tap = globalThis[${JSON.stringify(this.#directOutputName)}]; try { tap?.source?.disconnect(); } catch {} try { tap?.processor?.disconnect(); } catch {} try { tap?.silent?.disconnect(); } catch {} try { await tap?.context?.close(); } catch {} delete globalThis[${JSON.stringify(this.#directOutputName)}]; return true; })()`,
+        expression: `(async () => { const tap = globalThis[${JSON.stringify(this.#directOutputName)}]; try { if (tap?.receiverTrack) tap.receiverTrack.enabled = tap.receiverTrackEnabled; } catch {} try { tap?.tapTrack?.stop(); } catch {} try { tap?.source?.disconnect(); } catch {} try { tap?.processor?.disconnect(); } catch {} try { tap?.silent?.disconnect(); } catch {} try { await tap?.context?.close(); } catch {} delete globalThis[${JSON.stringify(this.#directOutputName)}]; return true; })()`,
         awaitPromise: true,
         returnByValue: true,
       });
