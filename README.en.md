@@ -33,9 +33,9 @@ The Discord/DAVE/Opus foundation is technically portable to Ubuntu, but GPT Live
 ### 📱 Real-device smartphone checks
 
 - Android (Pixel): bidirectional live voice between Discord and the same Codex Voice task verified
-- iPhone (official Discord iOS client): Discord connection test verified on 2026-08-26
+- iPhone (official Discord iOS client): bidirectional live voice between Discord and the same Codex Voice task verified on 2026-08-26
 
-The iPhone statement is limited to connection verification. It does not extend the Android multi-turn or audio-quality acceptance to an untested iPhone scope.
+On both Pixel and iPhone, Discord speech reached Codex and the Codex response audio returned through Discord. Multi-turn conversation was also verified on Pixel. This does not automatically claim device-specific endurance or audio-quality checks that were not separately performed.
 
 ## 🔁 Data flow
 

@@ -135,4 +135,13 @@ Run only after all internal implementation gates pass. Perform the same observab
 7. Restart and force one recoverable network interruption; verify reconnect uses the same task and fresh Discord/DAVE state.
 8. Review sanitized logs and health; no secret, identifier, transcript, raw audio, key, or plaintext fallback may appear.
 
+### Verified mobile Discord clients
+
+| Client | Verified result | Evidence scope |
+| --- | --- | --- |
+| Android / Pixel | Bidirectional Discord speech → Codex → Discord response; multi-turn conversation | Windows-hosted Discodex live E2E |
+| iPhone / official Discord iOS client | Bidirectional Discord speech → Codex → Discord response | Live E2E confirmed on 2026-08-26 |
+
+Do not downgrade the iPhone result to connection-only: bidirectional voice was explicitly accepted. Conversely, do not infer unrecorded device-specific endurance, reconnect, or audio-quality results from the bidirectional acceptance alone.
+
 Windows-only, macOS-only, unit tests, Bot presence, audible echo, fixed responses, transport counters, or zero 4006 cannot close the product acceptance requirements.

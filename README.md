@@ -33,9 +33,9 @@ Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在
 ### 📱 スマートフォン実機確認
 
 - Android（Pixel）: Discordと同一Codex Voiceタスク間の双方向実通話を確認済み
-- iPhone（Discord公式iOS client）: Discord接続テストを2026-08-26に確認済み
+- iPhone（Discord公式iOS client）: Discordと同一Codex Voiceタスク間の双方向実通話を2026-08-26に確認済み
 
-iPhoneの記載は接続確認の範囲です。Androidで行った複数往復や音声品質の受入を、未確認のiPhone結果へ拡張して扱いません。
+PixelとiPhoneの両方で、スマートフォンのDiscord音声がCodexへ届き、Codexの応答音声がDiscordへ返る相互通話を確認しています。Pixelでは複数往復も確認済みです。端末ごとに未実施の耐久・音質試験まで自動的に検証済みとは扱いません。
 
 ## 🔁 動作の流れ
 
