@@ -46,19 +46,90 @@ The macOS components and automated tests are implemented, but the Core Audio liv
 - 🪟 Windows: VB-CABLE, ffmpeg, and PowerShell
 - 🍎 macOS: ffmpeg and Keychain; the live-call runner is still in development
 
-## 🛠️ Setup
+## 🛠️ Installation
 
 Never store secrets in the repository. Production credentials use DPAPI on Windows and Keychain on macOS. 🔑
 
 ```powershell
-git clone <repository-url>
+git clone https://github.com/omusubiman5/discodex.git
 cd codex-discord-voice-bridge
 npm ci
 npm test
 npm run preflight:discord
 ```
 
-For Windows production operation, see the 📘 [operations runbook](docs/DISCORD_VOICE_RUNBOOK.md) and ⚙️ [local Discord setup](docs/DISCORD_LOCAL_SETUP.md).
+Grant the Discord bot only `VIEW_CHANNEL`, `CONNECT`, `SPEAK`, `SEND_MESSAGES`, `READ_MESSAGE_HISTORY`, and `USE_APPLICATION_COMMANDS`. Put the guild, voice/text channel, and allowlisted user IDs in the ignored `config/bridge.local.json`. Store the bot token in DPAPI on Windows or Login Keychain on macOS—never in JSON, `.env`, command-line arguments, logs, or chat.
+
+See ⚙️ [local Discord setup](docs/DISCORD_LOCAL_SETUP.md) for configuration and credential preparation, and the 📘 [operations runbook](docs/DISCORD_VOICE_RUNBOOK.md) for official libdave builds and advanced diagnosis. Normal connection and recovery are documented below so users do not need to assemble the basic workflow from separate documents.
+
+## 🪟 Prepare Discodex Relay on Windows
+
+**Discodex Relay** is the PC-side control app. It is not an always-on service; the user starts it only when needed.
+
+1. Install Node.js 26+, ffmpeg, VB-CABLE, and Codex Desktop.
+2. Build the Relay entry point from the repository root:
+
+   ```powershell
+   npm run build:relay:windows
+   ```
+
+3. Double-click `dist\Discodex Relay.lnk`.
+4. If the main button says `Prepare Codex`, press it once. Relay performs the required Codex preparation and safety checks. If it says `Start Relay`, press it once.
+5. Confirm the equivalent of `RELAY READY / VOICE DISCONNECTED / CODEX ROUTE READY`. Starting Relay alone does not join Discord Voice.
+6. Set `GPT Live → Discord output volume` between 25% and 100%, then press `Apply`. The default is 50%, and the setting affects only Codex audio sent to Discord.
+
+Discodex does not change the Windows default microphone or speaker.
+
+## 📱 Connect from Discord
+
+1. Open the target Codex task on the PC and make Discodex Relay `READY`.
+2. Run `/status` in the allowlisted Discord text channel. Confirm it is disconnected without a degraded state.
+3. Run `/connect` once in the same channel. Discodex validates the exact Codex task, single runner/lock, Discord Voice Ready, and DAVE before replying `Connected.`
+4. Join the allowlisted voice channel from the phone and speak normally.
+
+Do not repeatedly submit `/connect`. If it fails, use the specific returned failure and `/status` to identify the failed gate.
+
+## 🖥️ Return audio and microphone control to the PC
+
+When the Discord call is finished and you want to use Codex Voice on the PC again:
+
+1. Run `/disconnect` once in the allowlisted Discord text channel.
+2. Wait for the `Disconnected.` response.
+3. Discodex leaves Discord Voice, restores Codex playback on the PC, restores the original physical microphone, and releases the runner/lock. Codex Desktop and the current task remain open.
+4. Only if you also want to stop command control, press `Stop Relay` in the Relay app after restoration.
+
+| Action | Purpose |
+| --- | --- |
+| Discord `/disconnect` | End the call and restore PC audio plus the physical microphone |
+| Relay `Stop Relay` | Stop Discord command control after restoration |
+
+Relay refuses to close or stop control while a runner or lock is active. Use `/disconnect` first.
+
+## 🍎 macOS public testing
+
+macOS 13+ on Apple Silicon and Intel is currently a **public test target**. The shared core, Keychain credential provider, ffmpeg Opus/PCM adapter, and POSIX native-addon loader exist, but the Core Audio live-call runner and real-Mac E2E acceptance are incomplete. It is not yet equivalent to the Windows release.
+
+Start with non-connecting checks:
+
+```zsh
+git clone https://github.com/omusubiman5/discodex.git
+cd codex-discord-voice-bridge
+npm ci
+npm test
+npm run test:acceptance
+npm run preflight:discord
+npm run dry-run:discord
+```
+
+Requirements are Node.js 26+, ffmpeg, Xcode Command Line Tools, CMake, and Login Keychain. Build the official libdave addon for the Mac's real architecture (arm64 or x64) and current Node ABI by following the [macOS section of the operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#macos).
+
+When reporting results, include only:
+
+- Mac model (Apple Silicon or Intel), macOS, Node.js, and ffmpeg versions
+- The failed command and a sanitized error without tokens, Discord IDs, or transcript content
+- Whether testing reached automated checks or a real Discord call
+
+Never post tokens, Discord IDs, invite URLs, transcripts, or audio data in an issue or chat.
 
 For the AI-community announcement and Mac tester recruitment, use the 📣 [Discord post template](docs/AI_COMMUNITY_DISCORD_POST.md).
 
@@ -70,6 +141,8 @@ For the AI-community announcement and Mac tester recruitment, use the 📣 [Disc
 | `/disconnect` | Safely stop only bridge-owned routing |
 | `/status` | Report connection, audio-route, and DAVE state |
 | `/gain` | Adjust return audio within the approved range |
+
+On Windows, the same output gain is also available from the Discodex Relay slider.
 
 ## 🧪 Verification
 

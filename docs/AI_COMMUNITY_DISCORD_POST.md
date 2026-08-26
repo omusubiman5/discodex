@@ -47,7 +47,7 @@ Macをお持ちの方に、セットアップと実通話テストへのご協�
 
 **GitHub:** https://github.com/omusubiman5/discodex
 
-現在はPrivateリポジトリのため、テストに協力いただける方には個別に招待をお送りします。🙇
+公開リポジトリとして、macOSの非接続テストから試せます。実Discord通話はREADMEとRunbookの安全gateを確認した場合だけ実施してください。
 
 ## 💬 ご協力いただける方へ
 
