@@ -27,6 +27,20 @@ RaphaelはHome Assistantのallowlist済みscript/sceneだけを呼び出し、�
 
 ゲームeventから直接任意device actionを生成せず、`battle_start`、`battle_end`、`off_time`などの検証済みeventを固定Home Assistant script/sceneへ対応付ける。
 
+## Onboarding companion
+
+- 初回起動時に基本設定、操作、技、itemを画面文脈に合わせて音声案内する。
+- 利用者がゲームを止めてWikiを検索・通読せず、公式guideまたは利用許諾されたknowledgeから必要な情報だけを回答する。
+- 初心者、復帰者、platformごとの操作差へ説明量を適応し、spoiler範囲は利用者が選択する。
+
+## Esports coach and team memory
+
+- 明示的な録画操作、参加者同意、録画中表示、保存先、保持期間を分離して管理する。
+- 「ボス戦になったから録画して」で試合映像、会話、game event、装備、party、versionを時刻同期する。
+- 戦闘前に過去の同boss動画をDiscordでチーム視聴し、前回の失敗、成功、今回の変更点を確認する。
+- 戦闘後に撃破時間、phase、positioning、item/skill timing、死亡・回復箇所を前回と比較し、次回の練習課題を作る。
+- competitive ruleがlive assistanceを禁止する場合はlive助言を停止し、試合後分析だけを許可する。
+
 ## Interruption policy
 
 - **緊急:** 即時通知
@@ -41,6 +55,7 @@ RaphaelはHome Assistantのallowlist済みscript/sceneだけを呼び出し、�
 - 操作者、視聴者、bot、Codex、audio、video、runnerの権限とidentityを分離する。
 - 通常Discordユーザーの自動操作やuser tokenを使用しない。
 - ゲームprocessへのmemory injectionや入力自動化を行わず、画面認識と助言を基本とする。
+- private network解析、anti-cheat回避、プレイヤーに見えない情報の取得、無人gameplayを行わない。
 - bot-owned Go LiveはDiscordが公開または明示承認したpublisher経路だけを使用する。
 - HAOSはentity allowlist、値の上下限、実行者、実行理由、before/after stateを記録する。
 - lock、alarm、door、garageなどのsecurity-sensitive entityはRaphaelの既定許可対象に含めない。
