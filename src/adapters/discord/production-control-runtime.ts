@@ -109,7 +109,14 @@ export function createCodexCallInputRoute(
         throw new Error("The current Codex call input could not be attached reversibly.");
       }
       const graph = await inspect("--apply-cable-graph-input");
-      const graphHealthy = graph.graphContextState === "running"
+      // When Codex already owns the MediaStreamAudioDestinationNode, the
+      // bridge reuses that destination and deliberately owns no AudioContext.
+      // In that official existing-destination path there is no context state
+      // to report; liveness is proven by both tracks and the exact sender.
+      const contextHealthy = graph.graphMode === "existing-destination"
+        ? graph.graphContextState === undefined
+        : graph.graphContextState === "running";
+      const graphHealthy = contextHealthy
         && graph.graphSourceTrackState === "live"
         && graph.graphDestinationTrackState === "live"
         && graph.graphSenderMatched === true;

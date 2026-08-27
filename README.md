@@ -4,6 +4,12 @@
 
 **スマホのDiscordから、自宅・作業PCのGPT Live（Codex Voice）を呼び出し、現在のCodexタスクを起動・接続・操作する**ためのローカル音声ブリッジです。独立したチャットボットではなく、DiscordをGPT Liveの遠隔入口にします。📱↔️💻
 
+## 🧠 Project Raphael
+
+Discodexは、DISCORDERを支援するAI Gaming Life Companion構想 **Project Raphael** のDiscord接続moduleです。ゲーム内助言、初心者onboarding、録画・比較・Eスポーツコーチ、許可済み外部作業、HAOS、Healthcare Adapter、Discordへの協力依頼を一つの正本にまとめています。
+
+➡️ **[Project Raphaelの構想・完成体験・実行方針を読む](docs/PROJECT_RAPHAEL.md)**
+
 ## 🌟 特徴
 
 - 📱 スマホのDiscordからGPT Live（Codex Voice）を呼び出す
@@ -87,6 +93,8 @@ WindowsのPC側操作アプリが **Discodex Relay** です。Relayは常駐serv
 3. 生成された `dist\Discodex Relay.lnk` をダブルクリックします。
 4. 主ボタンが `Prepare Codex` なら、それを1回押します。必要なCodex準備と安全確認はRelayが行います。`Start Relay` なら、それを1回押します。
 5. `RELAY READY / VOICE DISCONNECTED / CODEX ROUTE READY` に相当する表示を確認します。Relay起動だけでDiscord Voiceには参加しません。
+
+画面共有は現在の公開機能に含まれません。PC通常ユーザーアカウントをCodexが操作するprototypeはDiscordのSelf-Bot方針に適合しないため採用せず、bot-owned Go Liveは公式に公開・承認されたpublisher経路を確認できるまで保留しています。根拠と再開条件は [Project Raphael](docs/PROJECT_RAPHAEL.md) を参照してください。
 6. `GPT Live → Discord output volume` を25〜100%で選び、`Apply` を押します。既定値は50%で、Discordへ送るCodex音声だけが対象です。
 
 Windowsの既定マイクやスピーカーは変更しません。

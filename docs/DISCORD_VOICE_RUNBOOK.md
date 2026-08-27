@@ -1,13 +1,13 @@
 # Discord Voice operator runbook
 
-This is the operator entry point for the Meetmate-style Discord bridge. The product is Discord audio connected to the **current GPT Live/Codex task**, not a standalone bot brain. This file is an operating procedure, not a status tracker.
+This is the operator entry point for the direct-audio Discord bridge. The product is Discord audio connected to the **current GPT Live/Codex task**, not a standalone bot brain. This file is an operating procedure, not a status tracker.
 
 ## Document index
 
 - Product and security policy: `PROJECT_POLICY.md`, `SAFETY_BOUNDARIES.md`
 - Protocol design: `DISCORD_POC.md`, `DAVE_EVALUATION.md`, `MINIMAL_DESIGN.md`
 - Local Discord setup: `DISCORD_LOCAL_SETUP.md`
-- Corrected requirement boundary: `DISCORD_MEETMATE_REQUIREMENTS_INCIDENT.md`
+- Canonical product boundary: `PROJECT_GOALS.md`, `MINIMAL_DESIGN.md`
 - 4006 diagnosis: `DISCORD_VOICE_4006_CAUSE_INVESTIGATION.md`, `DISCORD_VOICE_4006_FIX_REPORT.md`
 - Release trace: `DISCORD_VOICE_RELEASE_PLAN.md`
 
@@ -77,7 +77,7 @@ Rotate a leaked token in Discord Developer Portal first, replace the local secre
 
 The Windows product path is a non-owning attachment to the one already-active Codex realtime call. `CODEX_THREAD_ID` is verified against the current Desktop task, but the bridge never sends `thread/realtime/start`, `thread/realtime/stop`, or `thread/realtime/reconnect`. Discord audio is rendered to `CABLE Input`; the existing Codex WebRTC audio sender is switched with `RTCRtpSender.replaceTrack()` to the exact `CABLE Output` capture device. Codex process-loopback output is captured from the exact Desktop process tree and returned to Discord.
 
-This path contains no Meetmate STT, text turn, TTS, fixed response, echo brain, second ChatGPT conversation, or second task. The old owned-realtime and text-agent paths remain regression surfaces only and are rejected by the logged runner's source gate.
+This path contains no alternate STT/text/TTS pipeline, fixed response, echo brain, second ChatGPT conversation, or second task. The old owned-realtime and text-agent paths remain regression surfaces only and are rejected by the logged runner's source gate.
 
 ## Start, join, status, leave, and stop
 
@@ -99,9 +99,9 @@ For one recoverable Discord Voice WebSocket interruption, send Voice Resume opco
 
 ## Logs and health
 
-Healthy runtime state is one runner lock, one Meetmate pipeline, one verified Codex task binding, one Discord voice session, one UDP media socket, and DAVE active. Logs are JSONL state transitions only and must pass redaction tests. Check process/lock/socket identity together; a lock file alone is not health.
+Healthy runtime state is one runner lock, one direct-audio bridge, one verified Codex task binding, one Discord voice session, one UDP media socket, and DAVE active. Logs are JSONL state transitions only and must pass redaction tests. Check process/lock/socket identity together; a lock file alone is not health.
 
-Treat these as unhealthy: stale PID, overlapping runner, occupied-target discovery timeout, Voice close, repeated reconnect, missing output audio, `meetmate-stt-failed`, `codex-turn-failed`, missing exact-task lifecycle stages, mismatched Codex turn notifications, active-writer from a second app-server, plaintext fallback, or any secret/identifier/audio bytes in output. An occupied-target timeout is a Discord presence gate, not a silent-microphone diagnosis; do not relaunch repeatedly or create a second runner.
+Treat these as unhealthy: stale PID, overlapping runner, occupied-target discovery timeout, Voice close, repeated reconnect, missing output audio, `codex-input-failed`, missing exact-task lifecycle stages, mismatched Codex turn notifications, active-writer from a second app-server, plaintext fallback, or any secret/identifier/audio bytes in output. An occupied-target timeout is a Discord presence gate, not a silent-microphone diagnosis; do not relaunch repeatedly or create a second runner.
 
 ## 4006 and common failures
 
@@ -111,7 +111,7 @@ Treat these as unhealthy: stale PID, overlapping runner, occupied-target discove
 | UDP received but no DAVE decrypt | Verify RTP extension/AAD parsing and current ratchet | fail closed; rebuild/restart after transport regression passes |
 | Codex active-writer conflict | Confirm a second app-server was spawned | attach through the Desktop-owned injected RPC transport; never fork |
 | DAVE transition failure | Inspect sanitized opcode/state only | leave, destroy native state, fresh join; no plaintext fallback |
-| No Codex audio output | Confirm Meetmate completed STT, exact-task `turn/start`, matching text deltas, and TTS | reconnect the same task/pipeline; do not substitute GPT Live PCM, echo, or a standalone model |
+| No Codex audio output | Confirm the exact-task WebRTC receiver, direct-audio sink, non-silent PCM, and Discord RTP send markers | restore the same direct route; do not substitute text/TTS, echo, or a standalone model |
 | macOS Keychain denied | Run a local `security find-generic-password` check as the same user | unlock/authorize login Keychain, then retry the same issue |
 
 See the two 4006 documents in the index for the corrected race analysis. Zero 4006 is transport health, not product completion.

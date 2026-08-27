@@ -92,7 +92,7 @@ export class WindowsSystemSpeechStt extends EventEmitter {
   }
 
   async #recognize(pcm: Buffer): Promise<void> {
-    const root = await mkdtemp(join(tmpdir(), "codex-meetmate-stt-"));
+    const root = await mkdtemp(join(tmpdir(), "discodex-stt-"));
     const path = join(root, "input.wav");
     try {
       await writeFile(path, wav(pcm, this.#sampleRate), { flag: "wx" });
@@ -115,7 +115,7 @@ export async function synthesizeWithWindowsSystemSpeech(text: string, options: {
 } = {}): Promise<void> {
   if (!text.trim() || options.signal?.aborted) return;
   const sampleRate = options.sampleRate ?? 24_000;
-  const root = await mkdtemp(join(tmpdir(), "codex-meetmate-tts-"));
+  const root = await mkdtemp(join(tmpdir(), "discodex-tts-"));
   const path = join(root, "output.wav");
   try {
     await runPowerShell("scripts/windows-system-speech-synthesize.ps1", ["-WavePath", path, "-SampleRate", String(sampleRate)], text, options.signal);

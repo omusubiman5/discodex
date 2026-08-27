@@ -104,3 +104,17 @@ P1で最低限確認する組合せ:
 - Voice token、session ID、endpoint、transport keyのJSONログ表現をkey名でredactする。
 
 `npm test` は34件すべて成功しています。これはprotocol orderingと安全境界の証拠であり、native libdave build、実Voice Gateway、UDP/RTP、resume、Opus、OS audioの成功を意味しません。
+
+## Official libdave native addon loader result
+
+Evidence ID: `native-addon-loader-pass`
+
+追跡対象のNode境界は `.node` addonだけを読み込み、正のDAVE最大protocol versionを要求する。credentialを使わないnative session lifecycle probeを実行し、surface不正、`false`、例外はfail-closedとする。返す情報はprovider、transport、version、lifecycle statusだけで、key materialは公開しない。
+
+検証:
+
+- `node --test tests/native-addon.test.ts`: 有効／無効loaderの決定論的caseが成功する。
+- `node work/node-native-binding-probe/load-probe.cjs`: 公式libdaveへlinkしたaddonが `maxProtocolVersion: 1` と `sessionLifecycle: true` を返す。
+- `npm test`: project全体のregression gate。
+
+この証拠が示すのは、追跡対象Node load/probe seamの成立までである。production MLS message、Opus buffer marshalling、Discord credential、Gateway／UDP接続、実音声は別gateとする。

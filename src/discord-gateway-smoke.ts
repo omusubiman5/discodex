@@ -30,7 +30,6 @@ import {
 import { BoundedCodexPcmAdapter, CodexRealtimeVoiceBrain, type CodexPcmAdapter, type CodexVoiceBrainState } from "./core/codex-audio-route.ts";
 import type { CodexAppServerRpcTransport } from "./core/codex-audio-route.ts";
 import { DesktopOwnedCodexAppServerTransport } from "./core/codex-app-server-rpc.ts";
-import { MeetmateDiscordTransport } from "./transport-discord/meetmate-discord-transport.ts";
 import { MeetronDirectAudioBridge } from "../work/meetron/discord/direct-audio-bridge.mjs";
 import { WindowsExistingGptLiveAudio } from "../work/meetron/discord/windows-gpt-live-audio.mjs";
 import { DesktopExistingTaskAudio } from "../work/meetron/discord/desktop-existing-task-audio.mjs";
@@ -132,7 +131,6 @@ export interface UdpDiscoverySmokeOptions extends GatewayReadySmokeOptions {
   opusCodec?: OpusCodec;
   codexAudioAdapter?: CodexPcmAdapter;
   codexVoiceBrain?: CodexRealtimeVoiceBrain;
-  meetmateTransport?: MeetmateDiscordTransport;
   meetronDirectAudio?: {
     start(): Promise<void>;
     sendConferencePcm(frame: PcmAudioFrame): Promise<void>;
@@ -141,7 +139,7 @@ export interface UdpDiscoverySmokeOptions extends GatewayReadySmokeOptions {
   };
   onAudioRoundTrip?: (evidence: { pcmSamples: number; responseOpusBytes: number; packetBytes: number }) => void;
   onLiveCallReady?: () => void;
-  onLiveStage?: (stage: "discord-voice-joined" | "discord-voice-state-matched" | "discord-participant-voice-state" | "discord-clients-connected" | "discord-client-disconnected" | "speaker-ssrc-mapped" | "speaker-ssrc-remapped" | "dave-session-described" | "dave-key-package-sent" | "dave-external-sender-received" | "dave-prepare-epoch-received" | "dave-proposals-received" | "dave-commit-welcome-sent" | "dave-commit-received" | "dave-welcome-received" | "dave-transition-ready-sent" | "dave-execute-transition-received" | "dave-epoch-active" | "dave-ratchet-selected" | "udp-discovered" | "udp-received" | "dave-decrypted" | "pcm-generated" | "codex-realtime-input" | "codex-input-failed" | "codex-realtime-output" | "meetron-chatgpt-input" | "meetron-chatgpt-output" | "meetmate-input" | "meetmate-stt-speech" | "meetmate-stt-utterance" | "meetmate-stt-empty" | "meetmate-stt-failed" | "codex-turn-submitting" | "meetmate-turn-started" | "codex-first-delta" | "codex-turn-completed" | "codex-turn-failed" | "meetmate-tts-output" | "speech-started" | "response-encoded" | "silence-tail-sent" | "speaking-stopped" | "voice-resume-attempt" | "voice-resumed" | "reconnecting") => void;
+  onLiveStage?: (stage: "discord-voice-joined" | "discord-voice-state-matched" | "discord-participant-voice-state" | "discord-clients-connected" | "discord-client-disconnected" | "speaker-ssrc-mapped" | "speaker-ssrc-remapped" | "dave-session-described" | "dave-key-package-sent" | "dave-external-sender-received" | "dave-prepare-epoch-received" | "dave-proposals-received" | "dave-commit-welcome-sent" | "dave-commit-received" | "dave-welcome-received" | "dave-transition-ready-sent" | "dave-execute-transition-received" | "dave-epoch-active" | "dave-ratchet-selected" | "udp-discovered" | "udp-received" | "dave-decrypted" | "pcm-generated" | "codex-realtime-input" | "codex-input-failed" | "codex-realtime-output" | "meetron-chatgpt-input" | "meetron-chatgpt-output" | "codex-turn-submitting" | "codex-first-delta" | "codex-turn-completed" | "codex-turn-failed" | "speech-started" | "response-encoded" | "silence-tail-sent" | "speaking-stopped" | "voice-resume-attempt" | "voice-resumed" | "reconnecting") => void;
   onLiveResponse?: (evidence: { pcmSamples: number; responseOpusBytes: number; packetBytes: number; packets: number; inputSequence: number }) => void;
   onLiveInputLevel?: (evidence: PcmLevelEvidence) => void;
   onLiveOutputLevel?: (evidence: PcmLevelEvidence) => void;
@@ -503,7 +501,7 @@ export interface LiveDaveNegotiationOptions extends UdpDiscoverySmokeOptions {
   onNegotiated?: (evidence: { daveProtocolVersion: number; transportMode: string }) => void;
 }
 
-export interface CurrentTaskLiveCallOptions extends Omit<UdpDiscoverySmokeOptions, "codexVoiceBrain" | "meetmateTransport" | "meetronDirectAudio" | "liveCallWait" | "audioRoundTripProbe"> {
+export interface CurrentTaskLiveCallOptions extends Omit<UdpDiscoverySmokeOptions, "codexVoiceBrain" | "meetronDirectAudio" | "liveCallWait" | "audioRoundTripProbe"> {
   threadId?: string;
   appServerTransport?: CodexAppServerRpcTransport & { connect?(): Promise<void>; close?(): void };
   maxReconnectAttempts?: number;
@@ -926,7 +924,7 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
   const socketFactory = options.socketFactory ?? defaultSocketFactory;
   const udpDiscovery = options.udpDiscovery ?? discoverUdpAddress;
   if (options.signal?.aborted) throw new Error("Discord live-call was stopped explicitly before start.");
-  if (options.liveCallWait && options.audioRoundTripProbe && !options.meetronDirectAudio && !options.meetmateTransport && !options.codexVoiceBrain) {
+  if (options.liveCallWait && options.audioRoundTripProbe && !options.meetronDirectAudio && !options.codexVoiceBrain) {
     throw new Error("Product live-call requires one exact-session audio route before credential or network activity.");
   }
 
@@ -1002,8 +1000,7 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
       };
 
       const sendPipelinePcm = async (responsePcm: PcmAudioFrame): Promise<void> => {
-        if (!voiceReady || !udpMedia || !nativeDave || !mediaTransport) throw new Error("Meetmate output has no active Discord DAVE media transport.");
-        if (!options.meetronDirectAudio) options.onLiveStage?.("meetmate-tts-output");
+        if (!voiceReady || !udpMedia || !nativeDave || !mediaTransport) throw new Error("Audio output has no active Discord DAVE media transport.");
         const configuredGain = typeof options.outputGainLinear === "function" ? options.outputGainLinear() : options.outputGainLinear;
         const baselineOutput = applyDiscordOutputGain(responsePcm.samples, configuredGain ?? DEFAULT_OUTPUT_GAIN_LINEAR);
         const baselineLevel = measurePcmLevel(baselineOutput.samples);
@@ -1100,7 +1097,6 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
         outputSendChain.catch(finish);
         return outputSendChain;
       };
-      options.meetmateTransport?.setDiscordPcmSink(queuePipelinePcm);
       options.meetronDirectAudio?.setConferencePcmSink(async (frame) => {
         options.onLiveStage?.("meetron-chatgpt-output");
         void queuePipelinePcm(frame);
@@ -1193,19 +1189,6 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
                         void options.meetronDirectAudio.start()
                           .then(() => options.onLiveCallReady?.())
                           .catch(finish);
-                      } else if (options.liveCallWait && options.meetmateTransport) {
-                        options.meetmateTransport.on("playback_cancelled", () => {
-                          outputEpoch += 1;
-                          options.onLiveStage?.("speech-started");
-                          if (mediaTransport && udpMedia && voiceReady) {
-                            outputSendChain = outputSendChain.then(async () => {
-                              await sendDiscordSpeakingEnd(mediaTransport!, udpMedia!, voiceSocket!, voiceReady!.ssrc);
-                              options.onLiveStage?.("silence-tail-sent");
-                              options.onLiveStage?.("speaking-stopped");
-                            });
-                          }
-                        });
-                        options.onLiveCallReady?.();
                       } else if (options.liveCallWait) {
                         const brain = options.codexVoiceBrain!;
                         const codec = outboundCodec;
@@ -1370,11 +1353,6 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
                                       });
                                     }
                                     options.onLiveStage?.("meetron-chatgpt-input");
-                                    return;
-                                  }
-                                  if (options.meetmateTransport) {
-                                    options.meetmateTransport.sendDiscordPcm(inputPcm);
-                                    options.onLiveStage?.("meetmate-input");
                                     return;
                                   }
                                   if (options.codexVoiceBrain!.state !== "active") {
@@ -1595,9 +1573,6 @@ export async function runUdpDiscoverySmoke(options: UdpDiscoverySmokeOptions = {
                     void options.meetronDirectAudio.start()
                       .then(() => options.onLiveCallReady?.())
                       .catch(finish);
-                  } else if (!liveMediaStarted && options.meetmateTransport) {
-                    liveMediaStarted = true;
-                    options.onLiveCallReady?.();
                   }
                   // Epoch changes are part of a long-lived voice session; an
                   // Execute acknowledgement must not tear down the runner.
@@ -1943,7 +1918,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       let speechStarted = false;
       let currentCodexTurn = 0;
       let completedCodexTurns = 0;
-      let ttsAfterCompletedTurn = 0;
       let outputAfterCompletedTurn = 0;
       let responseAfterCompletedTurn = 0;
       let lastInputLevel: PcmLevelEvidence | undefined;
@@ -2003,8 +1977,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
               if (stage === "speech-started") speechStarted = true;
               if (stage === "codex-turn-submitting") currentCodexTurn += 1;
               if (stage === "codex-turn-completed") completedCodexTurns = currentCodexTurn;
-              if (stage === "meetmate-tts-output" && completedCodexTurns > 0) ttsAfterCompletedTurn = completedCodexTurns;
-              const perTurn = new Set(["meetmate-stt-utterance", "codex-turn-submitting", "meetmate-turn-started", "codex-first-delta", "codex-turn-completed", "codex-turn-failed", "meetmate-tts-output"]);
+              const perTurn = new Set(["codex-turn-submitting", "codex-first-delta", "codex-turn-completed", "codex-turn-failed"]);
               const stageKey = perTurn.has(stage) ? `${stage}:${currentCodexTurn}:${completedCodexTurns}` : stage;
               if (stage !== "reconnecting" && emittedLiveStages.has(stageKey)) return;
               emittedLiveStages.add(stageKey);

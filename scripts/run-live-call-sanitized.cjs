@@ -28,7 +28,7 @@ function classifyStderr(value) {
   if (/Unhandled 'error' event|ERR_UNHANDLED_ERROR/i.test(text)) stderrCategories.add("unhandled-error-event");
   if (/uncaught exception|uncaughtException/i.test(text)) stderrCategories.add("uncaught-exception");
   if (/unhandled rejection|unhandledRejection/i.test(text)) stderrCategories.add("unhandled-rejection");
-  if (/already has an active|active Meetmate voice turn|turn.*active/i.test(text)) stderrCategories.add("active-turn-conflict");
+  if (/already has an active|active text turn|turn.*active/i.test(text)) stderrCategories.add("active-turn-conflict");
   if (/current Codex task voice turn failed|turn\/completed|codex.*turn.*failed/i.test(text)) stderrCategories.add("codex-turn-failure");
   if (/Windows speech operation failed|speech recognition|speech synthesis/i.test(text)) stderrCategories.add("windows-speech-failure");
   if (/ECONN|ENOTFOUND|EHOSTUNREACH|ETIMEDOUT|socket hang up|network/i.test(text)) stderrCategories.add("network-failure");
@@ -41,7 +41,7 @@ function forwardSafeJson(line) {
       process.stdout.write(`${JSON.stringify(value)}\n`);
     }
   } catch {
-    // MeetMate diagnostics can contain transcript/response text. Drop all
+    // Runtime diagnostics can contain transcript/response text. Drop all
     // non-contract stdout at this process boundary instead of persisting it.
   }
 }

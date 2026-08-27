@@ -100,6 +100,21 @@ test("route attach rolls back an unhealthy WebAudio graph before Discord starts"
   assert.deepEqual(calls, ["inspect", "--apply-cable-input", "--apply-cable-graph-input", "--apply-physical-input"]);
 });
 
+test("route attach accepts the Codex-owned existing destination without inventing an AudioContext state", async () => {
+  const calls: string[] = [];
+  const reports = [
+    { liveAudioSenders: 1, cableSenders: 0, currentTrackLabel: "MediaStreamAudioDestinationNode" },
+    { applied: true, liveAudioSenders: 1, cableSenders: 1, previousTrackLabel: "MediaStreamAudioDestinationNode" },
+    { applied: true, liveAudioSenders: 1, cableSenders: 0, graphAttached: true, graphMode: "existing-destination", graphContextState: undefined, graphSourceTrackState: "live", graphDestinationTrackState: "live", graphSenderMatched: true },
+  ];
+  const route = createCodexCallInputRoute(async (...args) => {
+    calls.push(args[0] ?? "inspect");
+    return reports.shift() ?? {};
+  });
+  await route.attach();
+  assert.deepEqual(calls, ["inspect", "--apply-cable-input", "--apply-cable-graph-input"]);
+});
+
 test("production control composition starts one runner, observes join/match, and aborts only bridge-owned runner", async () => {
   const raw = JSON.parse(await readFile(new URL("../config/bridge.example.json", import.meta.url), "utf8"));
   const config = validateConfig(raw).discord;

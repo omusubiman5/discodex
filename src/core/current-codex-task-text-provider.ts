@@ -33,7 +33,7 @@ function paramsOf(notification: CodexAppServerNotification): Record<string, unkn
 function lastUserText(messages: readonly ChatMessage[]): string {
   const message = [...messages].reverse().find((candidate) => candidate.role === "user");
   if (typeof message?.content !== "string" || message.content.trim().length === 0) {
-    throw new Error("Meetmate produced no user text for the current Codex task.");
+    throw new Error("No user text was provided for the current Codex task.");
   }
   return message.content;
 }
@@ -78,11 +78,10 @@ class AsyncTextQueue implements AsyncIterable<string> {
 }
 
 /**
- * Meetmate LLM provider backed by one already-owned Codex Desktop task.
- * Meetmate retains STT, turn/barge-in, delegation, and TTS ownership; this
- * provider only submits the recognized utterance to the exact current task.
+ * Text provider backed by one already-owned Codex Desktop task. It submits a
+ * recognized utterance to that exact task without creating another agent.
  */
-export class CurrentCodexTaskLlmProvider {
+export class CurrentCodexTaskTextProvider {
   readonly name = "codex-current-task";
   readonly managesHistory = true;
   readonly #threadId: string;
@@ -102,8 +101,8 @@ export class CurrentCodexTaskLlmProvider {
   }
 
   async *streamChat(messages: readonly ChatMessage[], options: StreamChatOptions = {}): AsyncGenerator<string> {
-    if (this.#active) throw new Error("The current Codex task already has an active Meetmate voice turn.");
-    if (options.signal?.aborted) throw new Error("Meetmate voice turn was cancelled before Codex submission.");
+    if (this.#active) throw new Error("The current Codex task already has an active text turn.");
+    if (options.signal?.aborted) throw new Error("The text turn was cancelled before Codex submission.");
     this.#active = true;
     const queue = new AsyncTextQueue();
     const pending: Array<{ readonly turnId: string; readonly delta: string }> = [];
@@ -163,7 +162,7 @@ export class CurrentCodexTaskLlmProvider {
       interruptRequested = true;
       this.#onStage("turn-interrupted");
       void this.#transport.request("turn/interrupt", { threadId: this.#threadId, turnId }).catch(() => undefined);
-      queue.fail(new Error("Meetmate interrupted the current Codex task voice turn."));
+      queue.fail(new Error("The current Codex task text turn was interrupted."));
     };
     options.signal?.addEventListener("abort", abort, { once: true });
 
@@ -172,7 +171,7 @@ export class CurrentCodexTaskLlmProvider {
       const response = await this.#transport.request("turn/start", {
         threadId: this.#threadId,
         input: [{ type: "text", text: lastUserText(messages), text_elements: [] }],
-        responsesapiClientMetadata: { source: "meetmate-discord-voice" },
+        responsesapiClientMetadata: { source: "discodex-current-task-text" },
       }) as CodexTurnStartResponse;
       if (typeof response.turn?.id !== "string" || response.turn.id.length === 0) {
         throw new Error("Codex app-server did not return a voice turn ID.");

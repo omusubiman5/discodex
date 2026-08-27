@@ -1,9 +1,9 @@
-export const MEETMATE_PRIMARY_REFERENCES = Object.freeze([
-  "https://github.com/caty-ai/meetmate",
-  "https://github.com/caty-ai/meetmate/blob/main/docs/TECHNICAL.md",
-  "https://github.com/caty-ai/meetmate/blob/main/docs/architecture.md",
-  "https://github.com/caty-ai/meetmate/blob/main/docs/setup-guide.md",
-  "https://github.com/caty-ai/meetmate/blob/main/docs/deploy-checklist.md",
+export const PRODUCT_PRIMARY_REFERENCES = Object.freeze([
+  "PROJECT_GOALS.md#discord-voice-entry",
+  "docs/MINIMAL_DESIGN.md",
+  "docs/DISCORD_VOICE_RUNBOOK.md",
+  "https://docs.discord.com/developers/topics/voice-connections",
+  "https://daveprotocol.com/",
 ] as const);
 
 export const PRODUCT_REQUIREMENTS = Object.freeze([
@@ -32,7 +32,7 @@ export interface AcceptanceTrace {
 }
 
 /** Fail-closed requirement -> test -> evidence gate. */
-export function assertMeetmateDiscordAcceptance(traces: readonly AcceptanceTrace[]): void {
+export function assertDiscodexAcceptance(traces: readonly AcceptanceTrace[]): void {
   const failures: string[] = [];
   for (const requirement of PRODUCT_REQUIREMENTS) {
     const matches = traces.filter((trace) => trace.requirement === requirement);
@@ -48,5 +48,5 @@ export function assertMeetmateDiscordAcceptance(traces: readonly AcceptanceTrace
     if (requirement === "windows-real-e2e" && trace.evidenceKind !== "windows-e2e") failures.push(`${requirement}: Windows E2E evidence is required`);
     if (requirement === "macos-real-e2e" && trace.evidenceKind !== "macos-e2e") failures.push(`${requirement}: macOS E2E evidence is required`);
   }
-  if (failures.length > 0) throw new Error(`Meetmate Discord acceptance failed closed: ${failures.join("; ")}`);
+  if (failures.length > 0) throw new Error(`Discodex acceptance failed closed: ${failures.join("; ")}`);
 }

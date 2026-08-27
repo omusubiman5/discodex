@@ -4,6 +4,12 @@
 
 Discodex is a local voice bridge that lets you **call GPT Live (Codex Voice) from Discord on your phone**, then start, connect to, and operate the current Codex task on your home or workstation computer. It does not create a separate chatbot—Discord becomes a remote entry point to GPT Live. 📱↔️💻
 
+## 🧠 Project Raphael
+
+Discodex is the Discord connection module for **Project Raphael**, an AI Gaming Life Companion platform supporting the human DISCORDER. The single canonical brief covers in-game guidance, onboarding, recording and esports coaching, authorized external work, HAOS, the Healthcare Adapter, safety boundaries, and the Discord partnership request.
+
+➡️ **[Read the Project Raphael concept, complete experience, and execution policy](docs/PROJECT_RAPHAEL.md)**
+
 ## 🌟 Highlights
 
 - 📱 Call GPT Live (Codex Voice) from Discord on your phone

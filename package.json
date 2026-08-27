@@ -8,14 +8,12 @@
     "node": ">=26.0.0"
   },
   "dependencies": {
-    "@discordjs/opus": "0.10.0",
-    "meetmate": "github:caty-ai/meetmate#939a627d0d781ecb4ca4fc291eef0e9e456d59c5"
+    "@discordjs/opus": "0.10.0"
   },
   "overrides": {
     "tar": "7.5.22"
   },
   "scripts": {
-    "postinstall": "node scripts/apply-meetmate-provider-injection.cjs",
     "dry-run": "node src/cli.ts dry-run --config config/bridge.example.json",
     "dry-run:discord": "node src/cli.ts dry-run --transport discord --config config/bridge.example.json",
     "dry-run:meet": "node src/cli.ts dry-run --transport meet --config config/bridge.example.json",

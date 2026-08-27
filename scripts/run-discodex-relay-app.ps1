@@ -11,11 +11,12 @@ $startScript = Join-Path $repoRoot 'scripts\start-discord-production-control-cur
 $stopScript = Join-Path $repoRoot 'scripts\stop-discord-production-control-current.ps1'
 $statusScript = Join-Path $repoRoot 'scripts\get-discodex-relay-status.ps1'
 $gainScript = Join-Path $repoRoot 'scripts\manage-discord-output-gain.mjs'
+$screenShareScript = Join-Path $repoRoot 'scripts\manage-discord-screen-share.mjs'
 $prepareCodexScript = Join-Path $repoRoot 'scripts\prepare-codex-desktop-for-discodex.ps1'
 $taskFile = Join-Path $repoRoot 'runtime\discodex-relay.thread-id'
 $windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 
-foreach ($required in @($startScript, $stopScript, $statusScript, $gainScript, $prepareCodexScript, $windowsPowerShell)) {
+foreach ($required in @($startScript, $stopScript, $statusScript, $gainScript, $screenShareScript, $prepareCodexScript, $windowsPowerShell)) {
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "A fixed Discodex Relay prerequisite is missing." }
 }
 
@@ -203,7 +204,7 @@ function New-RelayLabel {
 
 $form = [Windows.Forms.Form]::new()
 $form.Text = 'Discodex Relay'
-$form.ClientSize = [Drawing.Size]::new(720, 560)
+$form.ClientSize = [Drawing.Size]::new(720, 708)
 $form.FormBorderStyle = [Windows.Forms.FormBorderStyle]::FixedDialog
 $form.MaximizeBox = $false
 $form.StartPosition = [Windows.Forms.FormStartPosition]::CenterScreen
@@ -229,7 +230,14 @@ $stopButton = [Windows.Forms.Button]::new(); $stopButton.SetBounds(182, 108, 150
 $refreshButton = [Windows.Forms.Button]::new(); $refreshButton.SetBounds(344, 108, 125, 38); $refreshButton.Text = 'Refresh'; Set-SecondaryButtonStyle $refreshButton
 $statusPanel.Controls.AddRange(@($statusHeading, $statusLabel, $relayBadge, $routeBadge, $voiceBadge, $startButton, $stopButton, $refreshButton))
 
-$gainPanel = [Windows.Forms.Panel]::new(); $gainPanel.SetBounds(24, 312, 672, 188); $gainPanel.BackColor = [Drawing.Color]::White; $gainPanel.BorderStyle = [Windows.Forms.BorderStyle]::FixedSingle
+$sharePanel = [Windows.Forms.Panel]::new(); $sharePanel.SetBounds(24, 312, 672, 128); $sharePanel.BackColor = [Drawing.Color]::White; $sharePanel.BorderStyle = [Windows.Forms.BorderStyle]::FixedSingle
+$shareHeading = New-RelayLabel 20 14 570 32 'Discord 画面共有'; $shareHeading.Font = New-RelayFont 18
+$shareHelp = New-RelayLabel 20 48 625 24 '公式Discord UIでCodex作業画面を共有します。音声接続は維持されます。'; $shareHelp.ForeColor = $textMuted; $shareHelp.Font = New-RelayFont 9
+$shareStartButton = [Windows.Forms.Button]::new(); $shareStartButton.SetBounds(20, 78, 180, 38); $shareStartButton.Text = '画面共有を開始'; Set-PrimaryButtonStyle $shareStartButton
+$shareStopButton = [Windows.Forms.Button]::new(); $shareStopButton.SetBounds(212, 78, 180, 38); $shareStopButton.Text = '画面共有を停止'; Set-SecondaryButtonStyle $shareStopButton
+$sharePanel.Controls.AddRange(@($shareHeading, $shareHelp, $shareStartButton, $shareStopButton))
+
+$gainPanel = [Windows.Forms.Panel]::new(); $gainPanel.SetBounds(24, 460, 672, 188); $gainPanel.BackColor = [Drawing.Color]::White; $gainPanel.BorderStyle = [Windows.Forms.BorderStyle]::FixedSingle
 $gainHeading = New-RelayLabel 20 16 570 32 'GPT Live → Discord output volume'; $gainHeading.Font = New-RelayFont 18
 $gainLabel = New-RelayLabel 20 55 470 24 'GPT Live → Discord output volume: 50%'
 $gainSlider = [Windows.Forms.TrackBar]::new(); $gainSlider.SetBounds(20, 82, 480, 50); $gainSlider.Minimum = 25; $gainSlider.Maximum = 100; $gainSlider.TickFrequency = 5; $gainSlider.Value = 50; $gainSlider.BackColor = [Drawing.Color]::White
@@ -237,10 +245,10 @@ $applyButton = [Windows.Forms.Button]::new(); $applyButton.SetBounds(525, 85, 12
 $limiterLabel = New-RelayLabel 20 142 625 28 'Safe range: 25–100%  ·  Default: 50%  ·  True-peak limiter: −1 dBTP'; $limiterLabel.ForeColor = $textMuted; $limiterLabel.Font = New-RelayFont 9
 $gainPanel.Controls.AddRange(@($gainHeading, $gainLabel, $gainSlider, $applyButton, $limiterLabel))
 
-$footer = [Windows.Forms.Panel]::new(); $footer.SetBounds(0, 520, 720, 40); $footer.BackColor = $footerBackground
+$footer = [Windows.Forms.Panel]::new(); $footer.SetBounds(0, 668, 720, 40); $footer.BackColor = $footerBackground
 $footerText = New-RelayLabel 24 10 650 20 'Single control · Single runner · Global audio defaults unchanged'; $footerText.ForeColor = $textMuted; $footerText.BackColor = $footerBackground; $footerText.Font = New-RelayFont 9
 $footer.Controls.Add($footerText)
-$form.Controls.AddRange(@($header, $blueAccent, $statusPanel, $gainPanel, $footer))
+$form.Controls.AddRange(@($header, $blueAccent, $statusPanel, $sharePanel, $gainPanel, $footer))
 
 $script:lastSnapshot = $null
 $script:busy = $false
@@ -252,14 +260,18 @@ $script:controlHealthySince = [DateTime]::MinValue
 function Set-RelayButtonState {
   $refreshButton.Enabled = -not $script:busy
   $applyButton.Enabled = -not $script:busy
+  $shareStopButton.Enabled = -not $script:busy
   if ($script:busy -or $null -eq $script:lastSnapshot) {
     $startButton.Enabled = $false
     $stopButton.Enabled = $false
+    $shareStartButton.Enabled = $false
+    $shareStopButton.Enabled = $false
     return
   }
   $startButton.Text = if ($script:lastSnapshot.routePrepared) { 'Start Relay' } else { 'Prepare Codex' }
   $startButton.Enabled = $script:lastSnapshot.controlCount -le 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent -and ((-not $script:lastSnapshot.routePrepared) -or $script:lastSnapshot.controlCount -eq 0)
   $stopButton.Enabled = $script:lastSnapshot.controlCount -eq 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent
+  $shareStartButton.Enabled = $script:lastSnapshot.runnerCount -eq 1 -and $script:lastSnapshot.lockPresent
 }
 
 function Set-RelayBusy {
@@ -329,6 +341,27 @@ function Start-RelayControlOperation {
   }
 }
 
+function Start-ScreenShareOperation {
+  param([ValidateSet('start', 'stop')][string]$Action)
+  if ($null -ne $script:activeOperation) { return }
+  Set-RelayBusy $true
+  try {
+    $snapshot = Get-RelaySnapshot
+    if ($Action -eq 'start' -and ($snapshot.runnerCount -ne 1 -or -not $snapshot.lockPresent)) {
+      throw 'Connect Discodex voice before starting screen share.'
+    }
+    $shareHelp.Text = if ($Action -eq 'start') { '公式Discord UIで画面共有を開始しています…' } else { '公式Discord UIで画面共有を停止しています…' }
+    Write-RelayAudit ('discord-screen-share-' + $Action + '-requested') ''
+    $script:activeOperation = Start-RelayChild 'node.exe' ((Quote-RelayArgument $screenShareScript) + ' ' + $Action) 100000 $true
+    $kind = if ($Action -eq 'start') { 'Screen Share Start' } else { 'Screen Share Stop' }
+    $script:activeOperation | Add-Member -NotePropertyName Kind -NotePropertyValue $kind
+  }
+  catch {
+    Set-RelayBusy $false
+    Show-RelayError $_.Exception.Message
+  }
+}
+
 $operationTimer = [Windows.Forms.Timer]::new()
 $operationTimer.Interval = 200
 $operationTimer.Add_Tick({
@@ -350,6 +383,13 @@ $operationTimer.Add_Tick({
       if (-not $script:lastSnapshot.routePrepared -or $script:lastSnapshot.controlCount -ne 1 -or $script:lastSnapshot.runnerCount -ne 0 -or $script:lastSnapshot.lockPresent) { throw 'Codex audio route preparation did not reach a safe Ready state.' }
       $script:ownsControl = $true
       Write-RelayAudit 'codex-route-ready' ''
+    }
+    elseif ($operation.Kind -eq 'Screen Share Start' -or $operation.Kind -eq 'Screen Share Stop') {
+      $screenResult = $result.StandardOutput.Trim() | ConvertFrom-Json
+      if (-not $screenResult.ok -or $screenResult.status -ne 'confirmed') { throw 'Discord screen-share state was not confirmed.' }
+      $action = if ($operation.Kind -eq 'Screen Share Start') { 'started' } else { 'stopped' }
+      $shareHelp.Text = 'Discord画面共有を' + $(if ($action -eq 'started') { '開始しました。' } else { '停止しました。音声接続は維持しています。' })
+      Write-RelayAudit ('discord-screen-share-' + $action) ''
     }
     else {
       if ($script:lastSnapshot.controlCount -ne 0) { throw 'Relay control did not stop cleanly.' }
@@ -405,6 +445,8 @@ $applyButton.Add_Click({
   catch { Show-RelayError $_.Exception.Message }
   finally { Set-RelayBusy $false }
 })
+$shareStartButton.Add_Click({ Start-ScreenShareOperation 'start' })
+$shareStopButton.Add_Click({ Start-ScreenShareOperation 'stop' })
 $startButton.Add_Click({
   Start-RelayControlOperation
 })

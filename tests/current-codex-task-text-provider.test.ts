@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CurrentCodexTaskLlmProvider } from "../src/core/codex-task-llm-provider.ts";
+import { CurrentCodexTaskTextProvider } from "../src/core/current-codex-task-text-provider.ts";
 import type { CodexAppServerNotification, CodexAppServerRpcTransport } from "../src/core/codex-audio-route.ts";
 import { TEST_CODEX_TASK_ID_1 } from "./fixtures/public-identities.mjs";
 
@@ -30,10 +30,10 @@ class MockTaskRpc implements CodexAppServerRpcTransport {
   }
 }
 
-test("Meetmate provider streams one turn through the exact existing Codex task", async () => {
+test("text provider streams one turn through the exact existing Codex task", async () => {
   const rpc = new MockTaskRpc();
   const stages: string[] = [];
-  const provider = new CurrentCodexTaskLlmProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
+  const provider = new CurrentCodexTaskTextProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
   const chunks: string[] = [];
   const consume = (async () => {
     for await (const chunk of provider.streamChat([{ role: "user", content: "What did we decide?" }])) chunks.push(chunk);
@@ -50,7 +50,7 @@ test("Meetmate provider streams one turn through the exact existing Codex task",
     params: {
       threadId: THREAD_ID,
       input: [{ type: "text", text: "What did we decide?", text_elements: [] }],
-      responsesapiClientMetadata: { source: "meetmate-discord-voice" },
+      responsesapiClientMetadata: { source: "discodex-current-task-text" },
     },
   });
   assert.equal(rpc.listeners.size, 0);
@@ -60,17 +60,17 @@ test("Meetmate provider streams one turn through the exact existing Codex task",
 test("current-task provider retains deltas and completion that race the turn/start response", async () => {
   const rpc = new MockTaskRpc();
   rpc.completeBeforeResponse = true;
-  const provider = new CurrentCodexTaskLlmProvider({ threadId: THREAD_ID, transport: rpc });
+  const provider = new CurrentCodexTaskTextProvider({ threadId: THREAD_ID, transport: rpc });
   const chunks: string[] = [];
   for await (const chunk of provider.streamChat([{ role: "user", content: "race" }])) chunks.push(chunk);
   assert.deepEqual(chunks, ["early"]);
 });
 
-test("Meetmate barge-in interrupts only its active current-task turn", async () => {
+test("cancellation interrupts only the active current-task text turn", async () => {
   const rpc = new MockTaskRpc();
   const controller = new AbortController();
   const stages: string[] = [];
-  const provider = new CurrentCodexTaskLlmProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
+  const provider = new CurrentCodexTaskTextProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
   const consume = (async () => {
     for await (const _chunk of provider.streamChat([{ role: "user", content: "Start answering" }], { signal: controller.signal })) { /* no-op */ }
   })();
@@ -88,17 +88,17 @@ test("current-task provider reports a content-free failure stage when turn/start
     request: async () => { throw new Error("sensitive app-server detail"); },
     subscribe: () => () => undefined,
   };
-  const provider = new CurrentCodexTaskLlmProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
+  const provider = new CurrentCodexTaskTextProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
   await assert.rejects(async () => {
     for await (const _chunk of provider.streamChat([{ role: "user", content: "voice input" }])) { /* no-op */ }
   }, /sensitive app-server detail/);
   assert.deepEqual(stages, ["turn-submitting", "turn-failed"]);
 });
 
-test("failed turn completion releases the provider for the next Meetmate turn", async () => {
+test("failed turn completion releases the provider for the next text turn", async () => {
   const rpc = new MockTaskRpc();
   const stages: string[] = [];
-  const provider = new CurrentCodexTaskLlmProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
+  const provider = new CurrentCodexTaskTextProvider({ threadId: THREAD_ID, transport: rpc, onStage: (stage) => stages.push(stage) });
   const first = (async () => {
     for await (const _chunk of provider.streamChat([{ role: "user", content: "first" }])) { /* no-op */ }
   })();

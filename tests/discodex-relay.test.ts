@@ -15,12 +15,13 @@ test("Relay app script is UTF-8 with BOM for Windows PowerShell 5.1", () => {
   assert.deepEqual(Array.from(source.subarray(0, 3)), [0xef, 0xbb, 0xbf]);
 });
 
-test("Relay app exposes only fixed start, stop, status, and output-gain controls", () => {
+test("Relay app exposes only fixed relay, gain, and screen-share controls", () => {
   const source = readFileSync(sourcePath, "utf8");
   assert.match(source, /start-discord-production-control-current\.ps1/);
   assert.match(source, /stop-discord-production-control-current\.ps1/);
   assert.match(source, /get-discodex-relay-status\.ps1/);
   assert.match(source, /manage-discord-output-gain\.mjs/);
+  assert.match(source, /manage-discord-screen-share\.mjs/);
   assert.match(source, /prepare-codex-desktop-for-discodex\.ps1/);
   assert.match(source, /Local\\DiscodexRelayApplication/);
   assert.match(source, /\[Windows\.Forms\.Application\]::Run\(\$form\)/);
@@ -28,6 +29,9 @@ test("Relay app exposes only fixed start, stop, status, and output-gain controls
   assert.match(source, /\$gainSlider\.Maximum = 100/);
   assert.match(source, /GPT Live → Discord output volume/);
   assert.match(source, /True-peak limiter: −1 dBTP/);
+  assert.match(source, /画面共有を開始/);
+  assert.match(source, /画面共有を停止/);
+  assert.match(source, /runnerCount -eq 1 -and \$script:lastSnapshot\.lockPresent/);
   assert.match(source, /CODEX ROUTE SETUP NEEDED/);
   assert.match(source, /Codex Desktop needs one Relay-managed restart/);
   assert.match(source, /Use \/disconnect in Discord before closing/);
