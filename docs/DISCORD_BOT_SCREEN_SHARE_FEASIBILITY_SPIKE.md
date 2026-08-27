@@ -7,7 +7,7 @@ status: complete
 
 # Spike Summary: Discodex botによるDiscord画面共有
 
-このspikeは、上位構想Project Raphaelのうち、Discord接続moduleであるDiscodexがbot-owned映像配信を担えるかを評価する。
+このspikeは、DISCORDERを支援するProject Raphaelのうち、Discord接続moduleであるDiscodexがbot-owned映像配信を担えるかを評価する。
 
 ## Overview
 

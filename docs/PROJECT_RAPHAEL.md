@@ -2,22 +2,25 @@
 
 **Internal codename:** Raphael
 
-**Public description:** Permission-delegated AI companion for Discord
+**Public description:** AI support platform for Discord experience creators
 
 ## Purpose
 
-Project Raphaelは、ゲーム中のプレイヤーが操作へ集中したまま、AIからゲーム内外の支援を受け、生活環境も連動できる上位構想である。Discodexは、そのうちDiscordからの呼び出し、音声・映像transport、権限委譲、参加者UIを担当するmoduleである。
+DISCORDERは、ゲーム、趣向、生活、衣食住に関する情報や購入提案を組み合わせ、Discord上の参加型体験を提供する人間のcreatorである。Project Raphaelは、DISCORDERの調査、個別最適化、運営、許可済み作業をAIで支援する基盤である。Discodexは、RaphaelをDiscordへ接続するmoduleである。
 
 ## Architecture
 
 ```text
-Project Raphael
-  ├─ Discodex: Discord voice/video、mobile entrypoint、permission、session
-  ├─ AI companion: 画面理解、会話、意思決定支援
-  ├─ Skills: メール、予定、通知などの許可済み外部作業
-  ├─ HAOS adapter: 掃除機、空調、照明、生活環境
-  └─ Knowledge/Coach: onboarding、攻略knowledge、録画、比較、team memory
+DISCORDER: 体験、情報、趣向、購入提案を設計・提供
+  └─ Project Raphael: DISCORDERを支援
+       ├─ Discodex: Discord voice/video、mobile entrypoint、permission、session
+       ├─ Raphael AI: 調査、画面理解、個別最適化、運営支援
+       ├─ Skills: メール、予定、通知などの許可済み外部作業
+       ├─ HAOS adapter: 掃除機、空調、照明、生活環境
+       └─ Knowledge/Coach: onboarding、攻略knowledge、録画、比較、team memory
 ```
+
+権限検証、identity分離、監査、fail-closedはRaphael内部の安全実装であり、DISCORDERとは別のcreator roleを新設しない。
 
 ## Experience
 
@@ -77,4 +80,4 @@ Discordへ、検証可能な権限委譲型AI共同作業基盤を実現する�
 
 ## Naming
 
-`Raphael`は全体構想のinternal project codename、`Discodex`はそのDiscord接続moduleおよび既存repositoryとする。公開名称・説明・画像では第三者作品との提携や公式性を示唆せず、`AI companion`を使用する。
+`DISCORDER`は人間の体験creator、`Raphael`はDISCORDER支援基盤のinternal project codename、`Discodex`はDiscord接続moduleおよび既存repositoryとする。公開名称・説明・画像では第三者作品との提携や公式性を示唆せず、`AI companion`を使用する。
