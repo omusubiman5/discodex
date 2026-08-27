@@ -1,147 +1,340 @@
-# Discord Voice operator runbook
+# Discodex technical and operations runbook / 技術・運用Runbook
 
-This is the operator entry point for the direct-audio Discord bridge. The product is Discord audio connected to the **current GPT Live/Codex task**, not a standalone bot brain. This file is an operating procedure, not a status tracker.
+This is the single technical source for installation, Discord configuration, architecture, security, DAVE, operations, troubleshooting, platform support, and acceptance. The product connects Discord audio to the **current GPT Live/Codex task**; it is not a standalone bot brain.
 
-## Document index
+本書は、導入、Discord設定、設計、安全境界、DAVE、運用、障害対応、OS対応、受入条件をまとめた唯一の技術正本です。製品はDiscord音声を**現在のGPT Live／Codexタスク**へ接続するもので、独立したbot brainではありません。
 
-- Product and security policy: `PROJECT_POLICY.md`, `SAFETY_BOUNDARIES.md`
-- Protocol design: `DISCORD_POC.md`, `DAVE_EVALUATION.md`, `MINIMAL_DESIGN.md`
-- Local Discord setup: `DISCORD_LOCAL_SETUP.md`
-- Canonical product boundary: `PROJECT_GOALS.md`, `MINIMAL_DESIGN.md`
-- 4006 diagnosis: `DISCORD_VOICE_4006_CAUSE_INVESTIGATION.md`, `DISCORD_VOICE_4006_FIX_REPORT.md`
-- Release trace: `DISCORD_VOICE_RELEASE_PLAN.md`
+## Contents / 目次
 
-## Supported environments and prerequisites
+- [Product boundary / 製品境界](#product-boundary)
+- [Discord Developer setup / Discord Developer設定](#discord-developer-setup)
+- [Install and credentials / 導入と資格情報](#install-and-credentials)
+- [Architecture and protocol / 設計とprotocol](#architecture-and-protocol)
+- [Security policy / 安全・運用方針](#security-policy)
+- [Operation and recovery / 接続・切断・復元](#operation-and-recovery)
+- [DAVE build and integration / DAVE build・統合](#dave-integration)
+- [4006 incident / 4006障害](#voice-4006)
+- [Ubuntu / Linux support](#ubuntu-linux-support)
+- [Real E2E acceptance / 実通話受入](#real-e2e-acceptance)
 
-| Requirement | Windows | macOS |
-|---|---|---|
-| OS | Windows 11 x64 | macOS 13+, Apple Silicon or Intel |
-| Runtime | Node.js 26+, npm, ffmpeg | Node.js 26+, npm, ffmpeg |
-| Native build | CMake, MSVC Build Tools, Windows SDK | Xcode Command Line Tools, CMake |
-| Secret store | Current-user DPAPI provider | Login Keychain provider |
-| Codex | Desktop signed in; target task already materialized | Desktop signed in; target task already materialized |
-| Discord | Private guild/channel, dedicated application, minimal bot permissions | same |
+<a id="product-boundary"></a>
 
-Official `discord/libdave` is mandatory. Never fall back to plaintext, a private crypto implementation, a different GPT session, or an echo/fixed response.
+## Product boundary / 製品境界
 
-## Install and preflight
+```text
+Smartphone Discord
+  ↕ Discord Gateway + Voice Gateway v8 + UDP/RTP + Opus + DAVE
+Discodex local bridge
+  ↕ isolated OS audio route + exact-task non-owning attachment
+Current GPT Live / Codex Voice task
+```
 
-From the repository root:
+**日本語:** 対象は単一利用者、単一host、単一の招待制Discord server、単一の選択済みCodexタスクです。別ChatGPT会話、echo、固定応答、別STT／text／TTS pipelineへ代替しません。bridgeはforeground Codex realtime callへstart／stop／reconnectを送らず、既存callへ非所有attachします。
+
+**English:** The boundary is one user, one host, one private Discord server, and one selected Codex task. A different ChatGPT conversation, echo, fixed response, or alternate STT/text/TTS pipeline is not a substitute. The bridge attaches non-owningly and never sends start, stop, or reconnect to the foreground Codex realtime call.
+
+### Supported environments / 対応環境
+
+| Platform | Current status / 現状 | Requirements / 必要条件 |
+| --- | --- | --- |
+| Windows 11 x64 | Supported and live-E2E verified / 対応・実通話確認済み | Node.js 26+, ffmpeg, VB-CABLE, PowerShell, CMake, MSVC Build Tools, Windows SDK |
+| macOS 13+ arm64/x64 | Partial; real Core Audio E2E pending / 部分対応・実機E2E待ち | Node.js 26+, ffmpeg, Keychain, Xcode Command Line Tools, CMake |
+| Ubuntu/Linux | Unsupported until official GPT Live support / GPT Live公式対応待ち | See [Ubuntu gate](#ubuntu-linux-support) |
+
+Official `discord/libdave` is mandatory. Plaintext fallback, custom cryptography, unpinned builds, and alternate AI sessions are prohibited.
+
+Discord公式`libdave`を必須とし、平文fallback、独自暗号、未固定build、別AI sessionを禁止します。
+
+<a id="discord-developer-setup"></a>
+
+## Discord Developer setup / Discord Developer設定
+
+**日本語:** cloneだけでは接続できません。[Discord Developer Portal](https://discord.com/developers/applications)で専用Application／Botを1つ作成し、自分の招待制serverへ導入します。
+
+**English:** A clone alone cannot connect. Create one dedicated Application/Bot in the [Discord Developer Portal](https://discord.com/developers/applications) and install it into your private server.
+
+| Item / 項目 | Required / 必須設定 |
+| --- | --- |
+| Install scopes | `bot`, `applications.commands` |
+| Bot permissions | `VIEW_CHANNEL`, `CONNECT`, `SPEAK`, `SEND_MESSAGES`, `READ_MESSAGE_HISTORY` |
+| Operator permission | `USE_APPLICATION_COMMANDS` in the control text channel / 操作用text channel |
+| Privileged intents | None; leave disabled / 不要・OFF |
+| Non-secret IDs | guild, voice channel, text channel, allowlisted user |
+| Secret | Bot Token only / Bot Tokenのみ |
+
+No separate Discord API key, Client Secret, OAuth user token, webhook, or Interactions Endpoint is required. The Application ID is resolved from the authenticated bot at startup. Never grant `ADMINISTRATOR`, `MANAGE_*`, `MOVE_MEMBERS`, or `MUTE_MEMBERS`.
+
+別のDiscord API key、Client Secret、OAuth user token、webhook、Interactions Endpointは不要です。Application IDは起動時に認証済みbotから取得します。`ADMINISTRATOR`、`MANAGE_*`、`MOVE_MEMBERS`、`MUTE_MEMBERS`は付与しません。
+
+Copy the tracked template and edit only non-secret identifiers. / tracked templateをコピーし、非秘密IDだけを編集します。
 
 ```powershell
-npm install
+Copy-Item config\bridge.example.json config\bridge.local.json
+```
+
+The local file is ignored by Git. Never put a token in JSON, `.env`, argv, logs, issues, or chat. Application commands are registered and read back through Discord REST API v10 when control starts.
+
+local fileはGit対象外です。tokenをJSON、`.env`、argv、log、Issue、chatへ入れません。application commandはcontrol起動時にDiscord REST API v10で登録・readbackされます。
+
+Official references / 公式資料:
+
+- [Building your first Discord Bot](https://docs.discord.com/developers/quick-start/getting-started)
+- [OAuth2 and permissions](https://docs.discord.com/developers/platform/oauth2-and-permissions)
+- [Application commands](https://docs.discord.com/developers/interactions/application-commands)
+- [Voice connections](https://docs.discord.com/developers/topics/voice-connections)
+
+<a id="install-and-credentials"></a>
+
+## Install and credentials / 導入と資格情報
+
+```powershell
+git clone https://github.com/omusubiman5/discodex.git
+cd discodex
+npm ci
 npm test
 npm run preflight:discord
 npm run dry-run:discord
 ```
 
-On macOS use the same commands in `zsh`. Install ffmpeg with the local package manager and verify `ffmpeg -version`. The native addon must be built for the current Node ABI and architecture. A missing addon, ffmpeg, credential, target, or DAVE capability is a fail-closed result.
+`preflight:discord` and `dry-run:discord` open no Discord API, Gateway, Voice Gateway, or UDP connection and read no credential. A blocked result before live configuration is expected fail-closed behavior.
 
-On macOS set `CODEX_BRIDGE_LIBDAVE_ADDON_PATH` in the bridge process to the absolute path of the locally built/signed `.node` addon. Do not point it at an x64 binary on arm64 or vice versa. `MacosFfmpegOpusCodec` and `MacosKeychainCredentialProvider` are the production OS adapter boundaries; their unit passes are not a substitute for the real macOS E2E gate.
+`preflight:discord`と`dry-run:discord`はDiscord API、Gateway、Voice Gateway、UDPへ接続せず、資格情報も読みません。実接続設定前のblockedは正常なfail-closedです。
 
-Build the pinned official library and addon on macOS from the repository root (replace `arm64-osx` with `x64-osx` on Intel):
+### Windows credential / Windows資格情報
 
-```zsh
-git -C work/dependency-probes/libdave submodule update --init --recursive
-work/dependency-probes/libdave/cpp/vcpkg/bootstrap-vcpkg.sh -disableMetrics
-make -C work/dependency-probes/libdave/cpp cclean
-make -C work/dependency-probes/libdave/cpp BUILD_TYPE=Release
-cmake -S work/node-native-binding-probe -B work/node-native-binding-probe/build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DLIBDAVE_STATIC_LIBRARY="$PWD/work/dependency-probes/libdave/cpp/build/libdave.a" \
-  -DCMAKE_TOOLCHAIN_FILE="$PWD/work/dependency-probes/libdave/cpp/vcpkg/scripts/buildsystems/vcpkg.cmake" \
-  -DVCPKG_MANIFEST_DIR="$PWD/work/dependency-probes/libdave/cpp/vcpkg-alts/openssl_3" \
-  -DVCPKG_TARGET_TRIPLET=arm64-osx
-cmake --build work/node-native-binding-probe/build --config Release
-export CODEX_BRIDGE_LIBDAVE_ADDON_PATH="$PWD/work/node-native-binding-probe/build/libdave_node_probe.node"
-node -e 'const b=require(process.env.CODEX_BRIDGE_LIBDAVE_ADDON_PATH); if (!(b.maxProtocolVersion > 0 && b.sessionLifecycle())) process.exit(1)'
+Use the current-user `WindowsDpapiCredentialProvider`. It stores only DPAPI ciphertext under `%LOCALAPPDATA%\CodexVoiceBridge\secrets`. Provision from an interactive local setup process; the runtime leases the decrypted token only while authenticating and disposes its reference afterward.
+
+current-userの`WindowsDpapiCredentialProvider`を使用します。保存されるのは`%LOCALAPPDATA%\CodexVoiceBridge\secrets`配下のDPAPI暗号文だけです。interactiveなlocal setupから登録し、runtimeは認証中だけ復号tokenをleaseして終了時に参照を破棄します。
+
+### macOS credential / macOS資格情報
+
+Store a generic password with service `codex-discord-voice-bridge.bot-token` and account `discord-bot` in Login Keychain. Use Keychain Access or an interactive `/usr/bin/security add-generic-password` invocation that does not place the secret in argv.
+
+Login Keychainへservice `codex-discord-voice-bridge.bot-token`、account `discord-bot`のgeneric passwordとして保存します。Keychain Access、またはsecretをargvへ出さないinteractiveな`/usr/bin/security add-generic-password`を使います。
+
+If a token leaks, reset it first in Discord Developer Portal, replace the local secret, verify rejection of the old token, then restart control. Never attach either value to evidence.
+
+token漏洩時はDeveloper Portalで先にresetし、local secretを交換し、旧tokenが拒否されることを確認してからcontrolを再起動します。新旧tokenを証拠へ含めません。
+
+<a id="architecture-and-protocol"></a>
+
+## Architecture and protocol / 設計とprotocol
+
+### Core responsibilities / 共通コア
+
+- **Session orchestration:** validates exact task, allowlist, duration, and legal state transitions. / 対象task、allowlist、期限、状態遷移を検証。
+- **Audio routing:** keeps Discord→Codex and Codex→Discord separate, rejects self-loop, and records reversible state. / 双方向routeを分離し、自己loopを拒否して復元状態を保持。
+- **Command policy:** exposes only `/connect`, `/disconnect`, `/status`, `/gain`. / 4つの限定commandだけを公開。
+- **Diagnostics:** distinguishes connected from functional and emits sanitized state/counts only. / 接続と機能成立を分離し、sanitize済み状態・件数だけを出力。
+- **OS adapters:** contain WASAPI/VB-CABLE, Core Audio, secret-store, and process differences outside the shared core. / OS固有差分をadapterへ隔離。
+
+### Discord voice sequence / Discord Voice接続順序
+
+1. Connect Main Gateway and request one exact guild/channel Voice State Update.
+2. Correlate matching Voice State Update and Voice Server Update; never cache endpoint or short-lived voice token.
+3. Connect Voice Gateway v8 and Identify with the official maximum DAVE protocol version.
+4. Complete UDP discovery and choose supported RTP transport encryption.
+5. Route DAVE MLS external sender, proposal, commit, welcome, prepare, ready, and execute through official libdave.
+6. Start Opus/RTP only after the matching Execute Transition.
+7. On speech end, send five official Opus silence frames, then Speaking=0.
+8. On stop, block output, leave voice, close media, destroy DAVE, restore route, dispose credential, and release the atomic lock.
+
+日本語要約: Main Gatewayの2eventを同一guild/channel/sessionで照合し、Voice Gateway v8、UDP discovery、transport暗号、DAVE transitionの順に進めます。一致するExecute Transition前はaudioを送りません。終了時はsilence frame、Speaking終了、voice退出、DAVE破棄、route復元、lock解放の順です。
+
+### Audio path / 音声経路
+
+```text
+Discord UDP/RTP → transport decrypt → DAVE decrypt → Opus decode
+  → isolated CABLE render → existing Codex sender input
+
+Existing Codex WebRTC audio → direct receiver/process capture → PCM gain/limiter
+  → persistent Opus encode → DAVE encrypt → RTP transport encrypt → Discord UDP
 ```
 
-The addon resolves Node-API symbols with `GetProcAddress` on Windows and `dlsym(RTLD_DEFAULT, ...)` on macOS/POSIX. A successful Windows rebuild does not prove the macOS artifact; capture the macOS architecture, addon load, and lifecycle result in its real-host evidence.
+The Windows path changes only the exact call's track and never changes global Console, Multimedia, or Communications defaults. The original physical track is retained for atomic rollback.
 
-Copy `config/bridge.example.json` to ignored `config/bridge.local.json` and fill only the allowlisted guild/channel/user identifiers. Never put the token in JSON, `.env`, argv, logs, or chat.
+Windows経路は対象callのtrackだけを変更し、globalなConsole／Multimedia／Communications既定値を変更しません。元physical trackをatomic rollback用に保持します。
 
-## Credentials
+<a id="security-policy"></a>
 
-### Windows
+## Security policy / 安全・運用方針
 
-Use `WindowsDpapiCredentialProvider.store()` from an interactive local setup process. It writes only current-user DPAPI ciphertext below `%LOCALAPPDATA%\CodexVoiceBridge\secrets`. The running bridge reads it through a scoped lease and clears its in-process reference on disposal.
+### Trusted / 信頼する
 
-### macOS
+- User-managed host and OS account / 利用者管理host・OS account
+- Selected Codex task / 選択済みCodex task
+- Private guild and exact guild/channel/user allowlist / 招待制guildと完全一致allowlist
+- Loopback-only local control / loopback限定local control
+- Official libdave session after completed DAVE transition / DAVE transition完了後の公式libdave session
 
-Create a generic password named `codex-discord-voice-bridge.bot-token` for account `discord-bot` in the login Keychain. Use Keychain Access, or run `/usr/bin/security add-generic-password -U -s codex-discord-voice-bridge.bot-token -a discord-bot -w` interactively so the secret is not placed in argv. The bridge uses `MacosKeychainCredentialProvider` and `/usr/bin/security find-generic-password -w`; stdout is held only for the scoped lease.
+### Not trusted / 信頼しない
 
-Rotate a leaked token in Discord Developer Portal first, replace the local secret, verify the old token is rejected, then restart. Do not include either token in evidence.
+- Display names, role names, voice identity, wake phrase, invite URL alone
+- A single `connected` display, a lock file alone, or stale process state
+- Endpoint names without stable identity
+- CDP or control ports reachable outside loopback
+- DAVE version zero, downgrade, incomplete transition, or plaintext media
 
-## Current Codex task binding
+表示名、role名、声紋、呼びかけ語、招待URLだけでは認証しません。`connected`表示やlock fileだけをhealthとみなしません。stable identityのないendpoint、loopback外のcontrol、DAVE未成立／downgrade／平文mediaを信頼しません。
 
-The Windows product path is a non-owning attachment to the one already-active Codex realtime call. `CODEX_THREAD_ID` is verified against the current Desktop task, but the bridge never sends `thread/realtime/start`, `thread/realtime/stop`, or `thread/realtime/reconnect`. Discord audio is rendered to `CABLE Input`; the existing Codex WebRTC audio sender is switched with `RTCRtpSender.replaceTrack()` to the exact `CABLE Output` capture device. Codex process-loopback output is captured from the exact Desktop process tree and returned to Discord.
+### Mandatory behavior / 必須動作
 
-This path contains no alternate STT/text/TTS pipeline, fixed response, echo brain, second ChatGPT conversation, or second task. The old owned-realtime and text-agent paths remain regression surfaces only and are rejected by the logged runner's source gate.
+- Fail closed before network activity on task, route, identity, credential, DAVE, runner, or lock ambiguity.
+- Keep one control, one runner, one atomic lock, one voice session, and one media socket.
+- Never log tokens, Discord IDs, invite URLs, transcripts, audio, MLS payloads, keys, usernames, or profile paths.
+- Apply bounded output gain and limiter; stop on clipping, feedback, or unrelated PC audio.
+- Preserve the foreground Codex call and restore only bridge-owned state.
+- Require existing Codex authorization boundaries for deletion, deployment, publication, messages, purchases, credentials, firewall, drivers, reboot, and shutdown.
 
-## Start, join, status, leave, and stop
+task、route、identity、credential、DAVE、runner、lockが曖昧ならnetwork前にfail-closedします。control／runner／lock／voice session／media socketは各1件です。秘密・識別子・会話・audioをlogへ出さず、gain／limiterを適用し、foreground Codex callを維持してbridge所有状態だけを復元します。破壊的・外部操作は既存Codex承認境界を維持します。
 
-1. Confirm no recorded `runtime/live-call.lock` owner is alive. Remove a stale lock only through the built-in lock acquisition path.
-2. Confirm the target private channel and allowlist, credential provider, native libdave, VB-CABLE endpoints, and exact current Codex task binding.
-3. Confirm exactly one active Codex WebRTC audio sender exists and is still using a non-CABLE input. Set `CODEX_THREAD_ID` and the numeric-loopback `CODEX_DESKTOP_DEBUGGER_ENDPOINT`, then start exactly one runner with `scripts/run-meetron-windows-live-logged.ps1`.
-4. The wrapper atomically changes only that call's sender to `CABLE Output`, launches the locked runner, and restores the original physical input in `finally`. It never changes Windows Console, Multimedia, or Communications defaults. No active sender, multiple senders, an identity mismatch, or an unrecoverable prior route fails before Discord networking.
-5. A ready status requires exact task identity, the per-call CABLE sender, Discord join, UDP discovery, and DAVE active. Bot presence or transport counters alone are not ready evidence.
-5. Status output may contain state names and bounded counts only. It must not contain tokens, identifiers, transcripts, audio, MLS payloads, or keys.
-6. Stop in this order: block new Discord output, send the five Discord Opus silence frames and Speaking=0, leave Discord voice, close UDP/Gateway, destroy DAVE state, stop the Windows audio host, restore the original per-call physical input track, release credential lease and runner lock. The foreground Codex realtime call remains active throughout.
+<a id="operation-and-recovery"></a>
 
-The runner emits sanitized state and bounded frame/level counters. A causal product turn requires an external Discord SSRC, authenticated DAVE decrypt, non-silent PCM written to the cable, a new Codex output interval after that input interval, non-silent process-loopback PCM, Opus/DAVE/RTP send, and intelligible playback at the external Discord participant. Counters without source isolation, old Codex output, self-loop audio, or a response caused by a physical microphone are not acceptance evidence.
+## Operation and recovery / 接続・切断・復元
 
-## Barge-in and reconnect
+### Start and connect / 起動・接続
 
-Discord input is continuously routed to the existing Codex sender; Codex owns its realtime VAD, turn boundaries, and barge-in. The bridge never calls a Codex realtime lifecycle method.
+1. Open the exact Codex task and activate its existing Voice Talk call. / 対象Codex taskで既存Voice Talk callを有効化。
+2. Start `Discodex Relay.lnk`; prepare Codex only if Relay reports that route preparation is needed. / Relayを起動し、必要表示時だけCodex準備。
+3. Require `control=1`, `runner=0`, `lock=false`, exact task, one sender, valid CABLE endpoints, and registered commands. / 単一性と対象一致を確認。
+4. In the allowlisted text channel, run `/status`, then `/connect` once. / 許可text channelで`/status`後に`/connect`を1回。
+5. Treat `Connected.` as valid only after Discord Voice Ready, target voice state, UDP discovery, and DAVE readiness. / 全join gate成立後だけConnected扱い。
 
-For one recoverable Discord Voice WebSocket interruption, send Voice Resume opcode 7 with the same Voice session and last `seq_ack`, accept opcode 9 Resumed, and retain UDP/DAVE media state. Recovery is bounded to one attempt; another failure stops the bridge without touching the Codex call. Participant rejoin replaces its SSRC mapping and DAVE decrypt context. A DAVE epoch transition greater than one preserves the MLS group, processes the new commit/welcome, and activates only the matching prepared transition. Outbound and per-SSRC inbound Opus codecs persist for the media stream; speech end sends five Opus silence frames before Speaking=0.
+### Disconnect and restore / 切断・復元
 
-## Logs and health
+1. Run `/disconnect` once.
+2. Confirm Discord voice leave and zero further RTP.
+3. Confirm the original physical Codex input track and PC playback are restored.
+4. Confirm runner=0 and lock released; leave the Codex task/call itself running.
+5. Use Relay `Stop Relay` only after restoration if command control is no longer needed.
 
-Healthy runtime state is one runner lock, one direct-audio bridge, one verified Codex task binding, one Discord voice session, one UDP media socket, and DAVE active. Logs are JSONL state transitions only and must pass redaction tests. Check process/lock/socket identity together; a lock file alone is not health.
+`/disconnect`を1回実行し、voice退出、RTP停止、元physical inputとPC再生の復元、runner 0、lock解放を確認します。Codex task/call自体は終了しません。control不要時だけ最後にRelayの`Stop Relay`を使います。
 
-Treat these as unhealthy: stale PID, overlapping runner, occupied-target discovery timeout, Voice close, repeated reconnect, missing output audio, `codex-input-failed`, missing exact-task lifecycle stages, mismatched Codex turn notifications, active-writer from a second app-server, plaintext fallback, or any secret/identifier/audio bytes in output. An occupied-target timeout is a Discord presence gate, not a silent-microphone diagnosis; do not relaunch repeatedly or create a second runner.
+### Reconnect / 再接続
 
-## 4006 and common failures
+One recoverable Voice WebSocket interruption may use Voice Resume opcode 7 with the same session and last sequence, accepting opcode 9 Resumed while retaining valid UDP/DAVE state. A second failure stops the bridge. Participant rejoin replaces that participant's SSRC and ratchet context only. Epoch transitions preserve the MLS group and activate only a matching prepared transition.
 
-| Symptom | Direct check | Recovery |
-|---|---|---|
-| Voice close 4006 | Compare runner PID, lock owner, and Voice session creation time | stop the superseded process, acquire one lock, request a fresh handoff |
-| UDP received but no DAVE decrypt | Verify RTP extension/AAD parsing and current ratchet | fail closed; rebuild/restart after transport regression passes |
-| Codex active-writer conflict | Confirm a second app-server was spawned | attach through the Desktop-owned injected RPC transport; never fork |
-| DAVE transition failure | Inspect sanitized opcode/state only | leave, destroy native state, fresh join; no plaintext fallback |
-| No Codex audio output | Confirm the exact-task WebRTC receiver, direct-audio sink, non-silent PCM, and Discord RTP send markers | restore the same direct route; do not substitute text/TTS, echo, or a standalone model |
-| macOS Keychain denied | Run a local `security find-generic-password` check as the same user | unlock/authorize login Keychain, then retry the same issue |
+recoverableなVoice WebSocket切断は1回だけ同一session／last sequenceでOpcode 7 Resumeし、Opcode 9 Resumedを確認します。2回目は停止します。participant rejoinでは対象SSRC／ratchetだけを更新し、epoch transitionはMLS groupを保持して一致transitionだけを有効化します。
 
-See the two 4006 documents in the index for the corrected race analysis. Zero 4006 is transport health, not product completion.
+<a id="dave-integration"></a>
 
-## Rollback and upgrade
+## DAVE build and integration / DAVE build・統合
 
-Before upgrade, record the current Node ABI, pinned libdave commit, addon architecture, Codex Desktop/app-server protocol schema, ffmpeg version, and passing regression commands without secrets. Stop the bridge cleanly and preserve the prior native addon/package lock.
+### Adopted boundary / 採用境界
 
-Upgrade one boundary at a time: Node dependencies, libdave/native addon, Codex Desktop WebRTC attachment, then the Windows audio host. Rebuild and run unit/transport regressions after each. Runtime rollback stops only the bridge, restores the original per-call physical input track, and verifies Windows global capture defaults were unchanged. Package rollback restores the prior package lock/native addon and reruns tests before a fresh Discord/DAVE join. Never stop/restart the foreground Codex realtime call, and never roll back to plaintext, an unpinned libdave build, or an alternate speech/text/TTS path.
+Official `discord/libdave` is the only crypto engine. A thin N-API addon may expose lifecycle and frame operations but no raw key getter. Required gates are pinned-source reproducibility, official tests/vectors, positive protocol version, downgrade rejection, reconnect/participant/epoch handling, crash-first audio stop, and license/SBOM inclusion.
 
-## Real E2E acceptance
+公式`discord/libdave`だけを暗号engineにします。薄いN-API addonはlifecycleとframe操作だけを公開し、raw key getterを持ちません。固定source再現build、公式test/vector、正version、downgrade拒否、reconnect／participant／epoch、crash時のaudio先行停止、license／SBOMをgateにします。
 
-Run only after all internal implementation gates pass. Perform the same observable matrix on Windows and macOS with a separate verifier:
+### Reproducible Windows probe / Windows再現probe
 
-1. Fresh setup/install and OS secret retrieval under the intended user.
-2. Start from a materialized current Codex task; verify the exact task identity and existing context are retained.
-3. Join the private Discord channel and exchange real participant speech in both directions.
-4. Ask a context-dependent question and invoke an existing skill/tool; observe the same task use its prior context and capability.
-5. Barge in during output and observe queued Discord speech stop promptly, with the next utterance handled.
-6. Exercise explicit stop and verify Voice leave, zero further audio, disposed secrets, destroyed DAVE state, and released lock.
-7. Restart and force one recoverable network interruption; verify reconnect uses the same task and fresh Discord/DAVE state.
-8. Review sanitized logs and health; no secret, identifier, transcript, raw audio, key, or plaintext fallback may appear.
+- Date: 2026-08-22
+- libdave commit: `52cd56dc550f447fb354b3a06c9e2d2e2a4309c6`
+- vcpkg submodule: `16c71a39e5a0fc0bdb3fad03beef8f38ee00ee3b`
+- Official `bootstrap-vcpkg.bat -disableMetrics`: PASS
+- Source modifications and system installs: none / なし
 
-### Verified mobile Discord clients
+The first official MSVC probe stopped before source compilation because Visual Studio C++, MSBuild, and the Windows SDK were absent. The auxiliary MinGW probe built OpenSSL/gtest/nlohmann-json/Catch2, then stopped in MLS++ because GCC 16.1 promoted `maybe-uninitialized` to `-Werror`. MinGW was never accepted as proof of the official path.
 
-| Client | Verified result | Evidence scope |
+初回公式MSVC probeはVisual Studio C++、MSBuild、Windows SDK不在でsource compile前に停止しました。補助MinGW probeは依存build後、MLS++の`maybe-uninitialized`が`-Werror`となり停止し、公式経路の証拠には採用していません。
+
+### Native loader result / native loader結果
+
+Evidence ID: `native-addon-loader-pass`
+
+- `node --test tests/native-addon.test.ts`: valid/invalid deterministic loader cases PASS.
+- `node work/node-native-binding-probe/load-probe.cjs`: `maxProtocolVersion: 1`, `sessionLifecycle: true`.
+- Loader accepts only a `.node` addon, positive protocol version, and passing lifecycle; malformed/false/throw fails closed.
+- Returned metadata contains provider, transport, version, and lifecycle status only; no key material.
+
+この証拠はNode load/probe seamの成立を示します。production MLS message、Opus marshalling、Discord credential、Gateway／UDP、実音声は別gateです。
+
+### macOS build / macOS build
+
+Build the pinned official library and addon for the real architecture (`arm64-osx` or `x64-osx`) and current Node ABI. Set `CODEX_BRIDGE_LIBDAVE_ADDON_PATH` only in the bridge process. A Windows artifact or unit test does not prove macOS E2E.
+
+実architecture（`arm64-osx`／`x64-osx`）と現在のNode ABI向けに固定公式library/addonをbuildし、`CODEX_BRIDGE_LIBDAVE_ADDON_PATH`はbridge processだけへ設定します。Windows artifactやunit testをmacOS E2Eの代替にしません。
+
+<a id="voice-4006"></a>
+
+## Voice 4006 incident / Voice 4006障害
+
+### Root cause / 根本原因
+
+Two concurrent live-call processes used the same bot identity. The second Voice session superseded the first, and Discord closed the old session with code 4006. This was a missing cross-process ownership lock, not a libdave failure. A separate RTP-size defect then treated encrypted RTP extension data as unencrypted AAD, blocking DAVE decrypt after UDP receive.
+
+同じbot identityで2つのlive-call processが競合し、後発sessionが先行sessionを無効化してDiscordが4006でcloseしました。原因はcross-process ownership lock欠落であり、libdaveではありません。その後、暗号化されたRTP extension dataを未暗号AADとして扱う別不具合も判明しました。
+
+### Fix and regression / 修正と回帰
+
+- Acquire `runtime/live-call.lock` before credential or network activity; reject overlap locally.
+- Authenticate the fixed RTP header, CSRCs, and extension preamble while decrypting extension data with media payload.
+- Emit sanitized `udp-discovered`, `ready`, `udp-received`, `dave-decrypted`, `pcm-generated`, `response-encoded`, and `response-sent` stages.
+- Keep the historical echo/counter run only as transport regression evidence; it is not product acceptance.
+
+credential／networkより前にatomic lockを取得し、重複をlocal拒否します。RTP extension境界を修正し、sanitize済みstageを記録します。旧echo／counter結果はtransport回帰証拠に限定し、製品合格には使いません。
+
+| Symptom / 症状 | First check / 最初の確認 | Recovery / 復旧 |
 | --- | --- | --- |
-| Android / Pixel | Bidirectional Discord speech → Codex → Discord response; multi-turn conversation | Windows-hosted Discodex live E2E |
-| iPhone / official Discord iOS client | Bidirectional Discord speech → Codex → Discord response | Live E2E confirmed on 2026-08-26 |
+| Voice close 4006 | runner PID, lock owner, Voice session time | stop superseded owner; one fresh handoff |
+| UDP without DAVE decrypt | RTP extension/AAD and ratchet | fail closed; pass transport regression before retry |
+| Active-writer conflict | second app-server/process | use Desktop-owned attachment; never fork |
+| No Codex output | exact receiver, non-silent PCM, RTP send | restore direct route; no text/TTS/echo substitute |
+| DAVE transition failure | sanitized opcode/state | leave, destroy native state, fresh join; no plaintext |
 
-Do not downgrade the iPhone result to connection-only: bidirectional voice was explicitly accepted. Conversely, do not infer unrecorded device-specific endurance, reconnect, or audio-quality results from the bidirectional acceptance alone.
+<a id="ubuntu-linux-support"></a>
 
-Windows-only, macOS-only, unit tests, Bot presence, audible echo, fixed responses, transport counters, or zero 4006 cannot close the product acceptance requirements.
+## Ubuntu / Linux support
+
+**Status / 状態:** Unsupported. The Discord/DAVE/Opus core is portable in principle, but GPT Live (Voice in Work/Codex) is not currently an official Ubuntu/Linux desktop capability. Work begins only after [official OpenAI support](https://help.openai.com/en/articles/20001275/) defines the supported task and audio boundary.
+
+未対応です。Discord／DAVE／Opus coreには移植可能部分がありますが、GPT Live（Work／Codex Voice）はUbuntu/Linux向け公式desktop機能ではありません。[OpenAI公式対応](https://help.openai.com/en/articles/20001275/)でtaskとaudio境界が定義された後に開始します。
+
+Remaining implementation gates / 残る実装gate:
+
+1. OS-independent runner contract instead of the Windows runner import.
+2. PipeWire/PulseAudio per-stream attach/restore without global defaults.
+3. Secret Service/libsecret production credential provider.
+4. Explicit Linux preflight/toolchain/native-addon branch.
+5. Linux Relay/package and rollback procedure.
+6. Real architecture/Node ABI libdave build and lifecycle.
+7. Source-isolated multi-turn E2E, rejoin, epoch transition, gain/clip, cleanup.
+
+Windows PowerShell/VB-CABLE, unit tests, unofficial UI automation, and alternate STT/text/TTS must not be presented as Ubuntu support.
+
+Windows PowerShell／VB-CABLE、unit test、非公式UI自動化、別STT／text／TTSをUbuntu対応の代替にしません。
+
+<a id="real-e2e-acceptance"></a>
+
+## Real E2E acceptance / 実通話受入
+
+Run the same observable matrix on every claimed OS. / 対応を主張する各OSで同じmatrixを実施します。
+
+1. Fresh install and OS secret retrieval under the intended user. / 新規導入と対象userでのsecret取得。
+2. Exact current Codex task and retained context. / 現在taskと既存context保持。
+3. Real external Discord speech reaches Codex through the isolated route. / 外部Discord発話が分離route経由でCodexへ到達。
+4. A causally corresponding Codex response reaches Discord clearly without echo, stale UI audio, or physical-mic contamination. / 内容対応応答がecho・古いUI音声・物理mic混入なしで明瞭に返る。
+5. Multiple turns, barge-in, disconnect/rejoin, one bounded resume, and DAVE epoch transition. / 複数turn、割込み、再参加、bounded resume、epoch transition。
+6. Output gain and limiter prevent clipping. / gainとlimiterで音割れ防止。
+7. Disconnect restores the physical route, leaves foreground Codex alive, releases runner/lock, and disposes secrets. / 切断でphysical route復元、Codex維持、runner/lock解放、secret破棄。
+8. Logs contain no secret, identifier, transcript, audio, key, or plaintext fallback. / logに秘密・識別子・本文・audio・key・平文fallbackなし。
+
+### Verified clients / 確認済みclient
+
+| Client | Verified result / 確認結果 |
+| --- | --- |
+| Android / Pixel | Bidirectional live voice and multi-turn through a Windows host / Windows hostで双方向・複数往復 |
+| iPhone / official Discord iOS | Bidirectional live voice confirmed 2026-08-26 / 2026-08-26双方向確認 |
+
+Do not downgrade the iPhone result to connection-only, and do not infer unrecorded endurance/reconnect/audio-quality results. Unit tests, bot presence, echo, counters, or zero 4006 cannot replace observable product E2E.
+
+iPhone結果を接続確認だけへ後退させず、未記録の耐久・再接続・音質まで推定しません。unit test、bot表示、echo、counter、4006ゼロは製品E2Eの代替になりません。
+
+## Official references / 公式参照
+
+- [Discord Gateway](https://docs.discord.com/developers/events/gateway)
+- [Discord Voice connections](https://docs.discord.com/developers/topics/voice-connections)
+- [Discord permissions](https://docs.discord.com/developers/topics/permissions)
+- [Discord application commands](https://docs.discord.com/developers/interactions/application-commands)
+- [DAVE protocol](https://daveprotocol.com/)
+- [Discord libdave](https://github.com/discord/libdave)

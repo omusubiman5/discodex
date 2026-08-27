@@ -1,6 +1,6 @@
 export const PRODUCT_PRIMARY_REFERENCES = Object.freeze([
   "PROJECT_GOALS.md#discord-voice-entry",
-  "docs/MINIMAL_DESIGN.md",
+  "docs/PROJECT_RAPHAEL.md",
   "docs/DISCORD_VOICE_RUNBOOK.md",
   "https://docs.discord.com/developers/topics/voice-connections",
   "https://daveprotocol.com/",

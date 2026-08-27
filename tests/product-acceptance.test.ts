@@ -4,6 +4,7 @@ import { assertDiscodexAcceptance, PRODUCT_PRIMARY_REFERENCES, PRODUCT_REQUIREME
 
 test("acceptance contract pins product sources, same thread, and both OS gates", () => {
   assert.equal(PRODUCT_PRIMARY_REFERENCES[0], "PROJECT_GOALS.md#discord-voice-entry");
+  assert.ok(PRODUCT_PRIMARY_REFERENCES.includes("docs/PROJECT_RAPHAEL.md"));
   assert.ok(PRODUCT_PRIMARY_REFERENCES.includes("docs/DISCORD_VOICE_RUNBOOK.md"));
   assert.ok(PRODUCT_REQUIREMENTS.includes("same-codex-thread-context"));
   assert.ok(PRODUCT_REQUIREMENTS.includes("windows-real-e2e"));

@@ -34,7 +34,7 @@ Discodexは、DISCORDERを支援するAI Gaming Life Companion構想 **Project R
 
 macOSの部品と自動テストは実装済みですが、Core Audio実通話ランナーとMac実機E2Eは未完了です。現時点では「WindowsとMacの完全対応」とは表記しません。
 
-Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在GPT Live（Work / Codex Voice）はUbuntu/Linux向けの公式デスクトップ機能として提供されていません。そのため、DiscodexのUbuntu版は現時点では未対応です。[OpenAIによるUbuntu対応](https://help.openai.com/en/articles/20001275/)後に、音声経路の実装と実機E2E検証を開始します。確認済みの技術課題は[Ubuntu対応の課題一覧](docs/UBUNTU_SUPPORT_ISSUES.md)に記録しています。
+Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在GPT Live（Work / Codex Voice）はUbuntu/Linux向けの公式デスクトップ機能として提供されていません。そのため、DiscodexのUbuntu版は現時点では未対応です。[OpenAIによるUbuntu対応](https://help.openai.com/en/articles/20001275/)後に、音声経路の実装と実機E2E検証を開始します。確認済みの技術課題は[技術・運用RunbookのUbuntu節](docs/DISCORD_VOICE_RUNBOOK.md#ubuntu-linux-support)へ統合しています。
 
 ### 📱 スマートフォン実機確認
 
@@ -97,7 +97,7 @@ npm run preflight:discord
 
 Botには上記の最小権限だけを許可します。guild、voice/text channel、許可userはGit対象外の `config/bridge.local.json` に設定し、bot tokenはWindowsではDPAPI、macOSではKeychainに保存します。JSON、`.env`、コマンド引数、チャットにtokenを書かないでください。
 
-設定値と資格情報の準備は ⚙️ [Discordローカル設定](docs/DISCORD_LOCAL_SETUP.md)、公式libdaveのビルドと障害調査は 📘 [運用Runbook](docs/DISCORD_VOICE_RUNBOOK.md) にあります。日常の接続・復旧操作は以下のREADME内で完結します。
+設定値、資格情報、公式libdave、障害調査は日英併記の 📘 [技術・運用Runbook](docs/DISCORD_VOICE_RUNBOOK.md) へ集約しています。日常の接続・復旧操作は以下のREADME内で完結します。
 
 ## 🪟 WindowsでDiscodex Relayを準備
 
@@ -160,7 +160,7 @@ npm run preflight:discord
 npm run dry-run:discord
 ```
 
-必要条件はNode.js 26+、ffmpeg、Xcode Command Line Tools、CMake、ログインKeychainです。公式libdave addonはMacの実際のアーキテクチャ（arm64 / x64）とNode ABIに合わせてビルドします。ビルド手順は [運用RunbookのmacOS節](docs/DISCORD_VOICE_RUNBOOK.md#macos) を使ってください。
+必要条件はNode.js 26+、ffmpeg、Xcode Command Line Tools、CMake、ログインKeychainです。公式libdave addonはMacの実際のアーキテクチャ（arm64 / x64）とNode ABIに合わせてビルドします。要件は [技術・運用RunbookのDAVE統合節](docs/DISCORD_VOICE_RUNBOOK.md#dave-integration) を使ってください。
 
 フィードバックには次の情報だけを含めてください。
 
@@ -200,7 +200,7 @@ npm run dry-run:discord
 - DAVE無効化、平文fallback、別AIセッションへの代替を拒否
 - ブリッジ停止時はCodex Desktop本体や現在のタスクを終了しない
 
-詳細は🛡️ [安全境界](docs/SAFETY_BOUNDARIES.md)を参照してください。
+詳細は🛡️ [技術・運用Runbookの安全・運用方針](docs/DISCORD_VOICE_RUNBOOK.md#security-policy)を参照してください。
 
 ## 📜 ライセンス
 

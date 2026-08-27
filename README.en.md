@@ -34,7 +34,7 @@ Discodex is the Discord connection module for **Project Raphael**, an AI Gaming 
 
 The macOS components and automated tests are implemented, but the Core Audio live-call runner and real-Mac end-to-end acceptance are not complete. This release therefore does not claim full Windows and macOS support.
 
-The Discord/DAVE/Opus foundation is technically portable to Ubuntu, but GPT Live (Voice in Work/Codex) is not currently offered as an official Ubuntu/Linux desktop capability. Discodex therefore does not support Ubuntu yet. Linux audio routing and real E2E validation are planned after [official Ubuntu support becomes available](https://help.openai.com/en/articles/20001275/). Confirmed technical gaps are tracked in the [Ubuntu support issue list](docs/UBUNTU_SUPPORT_ISSUES.md).
+The Discord/DAVE/Opus foundation is technically portable to Ubuntu, but GPT Live (Voice in Work/Codex) is not currently offered as an official Ubuntu/Linux desktop capability. Discodex therefore does not support Ubuntu yet. Linux audio routing and real E2E validation are planned after [official Ubuntu support becomes available](https://help.openai.com/en/articles/20001275/). Confirmed technical gaps are consolidated in the [Ubuntu section of the technical and operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#ubuntu-linux-support).
 
 ### 📱 Real-device smartphone checks
 
@@ -97,7 +97,7 @@ npm run preflight:discord
 
 Grant the bot only the least-privilege permissions listed above. Put the guild, voice/text channel, and allowlisted user IDs in the ignored `config/bridge.local.json`. Store the bot token in DPAPI on Windows or Login Keychain on macOS—never in JSON, `.env`, command-line arguments, logs, or chat.
 
-See ⚙️ [local Discord setup](docs/DISCORD_LOCAL_SETUP.md) for configuration and credential preparation, and the 📘 [operations runbook](docs/DISCORD_VOICE_RUNBOOK.md) for official libdave builds and advanced diagnosis. Normal connection and recovery are documented below so users do not need to assemble the basic workflow from separate documents.
+Configuration, credentials, official libdave, and diagnosis are consolidated in the bilingual 📘 [technical and operations runbook](docs/DISCORD_VOICE_RUNBOOK.md). Normal connection and recovery remain below so users do not need to assemble the basic workflow from separate documents.
 
 ## 🪟 Prepare Discodex Relay on Windows
 
@@ -158,7 +158,7 @@ npm run preflight:discord
 npm run dry-run:discord
 ```
 
-Requirements are Node.js 26+, ffmpeg, Xcode Command Line Tools, CMake, and Login Keychain. Build the official libdave addon for the Mac's real architecture (arm64 or x64) and current Node ABI by following the [macOS section of the operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#macos).
+Requirements are Node.js 26+, ffmpeg, Xcode Command Line Tools, CMake, and Login Keychain. Build the official libdave addon for the Mac's real architecture (arm64 or x64) and current Node ABI by following the [DAVE integration section of the technical and operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#dave-integration).
 
 When reporting results, include only:
 
@@ -198,7 +198,7 @@ Automated tests use no real credentials or external sockets. They cover safety b
 - Reject disabled DAVE, plaintext fallback, and alternate AI-session substitution
 - Stopping the bridge must not stop Codex Desktop or the current task
 
-See 🛡️ [Safety Boundaries](docs/SAFETY_BOUNDARIES.md) for details.
+See the 🛡️ [security policy in the technical and operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#security-policy) for details.
 
 ## 📜 Licenses
 
