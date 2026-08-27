@@ -6,7 +6,7 @@
 
 ## Purpose
 
-Discodexを、ゲーム中のプレイヤーが操作へ集中したまま、Discord音声からAIの支援を受けられる基盤へ拡張する。
+Discodexを、ゲーム中のプレイヤーが操作へ集中したまま、Discord音声からAIの支援を受け、Home Assistant OS（HAOS）経由で生活環境も連動できる基盤へ拡張する。
 
 ## Experience
 
@@ -15,6 +15,17 @@ Discodexを、ゲーム中のプレイヤーが操作へ集中したまま、Dis
 3. 利用者は「この戦闘中に有効なアイテムは？」のように音声で質問する。
 4. AIは戦況・所持品・文脈を確認し、Discord音声で短く回答する。
 5. AIはメール、予定、家事通知を優先度別に処理し、ゲームへの不要な割り込みを抑える。
+
+## HAOS control
+
+RaphaelはHome Assistantのallowlist済みscript/sceneだけを呼び出し、ゲーム状態と生活環境を連動させる。
+
+- **ロボット掃除機:** プレイ開始時や重要場面では一時停止し、許可されたoff-timeに再開する。
+- **空調:** 室温・湿度・在室状態と利用者設定を基に、許可範囲内で設定温度・mode・fanを調整する。
+- **照明:** ゲームeventごとに許可済みsceneを適用する。戦闘中は没入用scene、戦闘終了時のoff-timeは明るい回復sceneへ戻す。
+- **readback:** 各操作後にHAOS entity stateを確認し、失敗時は前sceneまたは安全既定値へ戻す。
+
+ゲームeventから直接任意device actionを生成せず、`battle_start`、`battle_end`、`off_time`などの検証済みeventを固定Home Assistant script/sceneへ対応付ける。
 
 ## Interruption policy
 
@@ -31,6 +42,8 @@ Discodexを、ゲーム中のプレイヤーが操作へ集中したまま、Dis
 - 通常Discordユーザーの自動操作やuser tokenを使用しない。
 - ゲームprocessへのmemory injectionや入力自動化を行わず、画面認識と助言を基本とする。
 - bot-owned Go LiveはDiscordが公開または明示承認したpublisher経路だけを使用する。
+- HAOSはentity allowlist、値の上下限、実行者、実行理由、before/after stateを記録する。
+- lock、alarm、door、garageなどのsecurity-sensitive entityはRaphaelの既定許可対象に含めない。
 
 ## Current gate
 
