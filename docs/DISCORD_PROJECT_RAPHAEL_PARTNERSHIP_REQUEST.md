@@ -16,7 +16,7 @@ The AI sees only the authorized game window and answers through Discord voice. W
 
 For a new game, Raphael can explain initial setup, controls and skills at the moment they are needed, reducing the need to stop playing and search a wiki. For a team, it can record an authorized boss battle, replay the previous attempt before the next fight, and compare timing, positioning and item usage afterward.
 
-This is **Project Raphael**, the next phase of our open-source project **Discodex**. Discodex already provides validated bidirectional Codex voice through Discord on Android and iPhone. Our goal is to let an authorized user call Codex from smartphone Discord and receive support both inside and outside the game.
+This is **Project Raphael**, the overarching AI gaming-life companion concept. **Discodex** is its open-source Discord module, responsible for the mobile entrypoint, permission validation, voice/video transport and participant controls. Discodex already provides validated bidirectional Codex voice through Discord on Android and iPhone. Our goal is to let an authorized user call Raphael through smartphone Discord and receive support both inside and outside the game.
 
 The product is not intended for hacking or cheating. It will not read game memory, inject code, automate controls, inspect private traffic, bypass anti-cheat, expose hidden information or play without the user. Games or competitive modes that prohibit external assistance will use post-match analysis only.
 
@@ -36,8 +36,8 @@ Technical investigation: https://github.com/omusubiman5/discodex/blob/master/doc
 
 Best regards,
 
-Discodex Project
+Project Raphael / Discodex
 
 ## 日本語要旨
 
-Project Raphaelは、スマホのDiscordからCodexを呼び出し、ゲーム画面に基づく助言、初心者onboarding、録画比較型esports coaching、メール返信などのゲーム外作業、HAOSによる生活環境制御を、検証可能な権限委譲の下で提供するAI gaming life companionである。Discordへは、通常ユーザーを自動操作しないbot-owned Go Liveの公式経路と、限定pilotまたはDeveloper Previewの相談を求める。
+Project Raphaelは、ゲーム画面に基づく助言、初心者onboarding、録画比較型esports coaching、メール返信などのゲーム外作業、HAOSによる生活環境制御を統合する上位のAI gaming-life companion構想である。Discodexは、スマホDiscordからRaphaelを呼び出すentrypoint、権限検証、音声・映像transport、参加者UIを担当するmoduleである。Discordへは、通常ユーザーを自動操作しないbot-owned Go Liveの公式経路と、限定pilotまたはDeveloper Previewの相談を求める。

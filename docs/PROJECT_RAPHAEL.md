@@ -6,7 +6,18 @@
 
 ## Purpose
 
-Discodexを、ゲーム中のプレイヤーが操作へ集中したまま、Discord音声からAIの支援を受け、Home Assistant OS（HAOS）経由で生活環境も連動できる基盤へ拡張する。
+Project Raphaelは、ゲーム中のプレイヤーが操作へ集中したまま、AIからゲーム内外の支援を受け、生活環境も連動できる上位構想である。Discodexは、そのうちDiscordからの呼び出し、音声・映像transport、権限委譲、参加者UIを担当するmoduleである。
+
+## Architecture
+
+```text
+Project Raphael
+  ├─ Discodex: Discord voice/video、mobile entrypoint、permission、session
+  ├─ AI companion: 画面理解、会話、意思決定支援
+  ├─ Skills: メール、予定、通知などの許可済み外部作業
+  ├─ HAOS adapter: 掃除機、空調、照明、生活環境
+  └─ Knowledge/Coach: onboarding、攻略knowledge、録画、比較、team memory
+```
 
 ## Experience
 
@@ -66,4 +77,4 @@ Discordへ、検証可能な権限委譲型AI共同作業基盤を実現する�
 
 ## Naming
 
-`Raphael`はDiscodex内部のproject codenameとする。公開名称・説明・画像では第三者作品との提携や公式性を示唆せず、`AI companion`を使用する。
+`Raphael`は全体構想のinternal project codename、`Discodex`はそのDiscord接続moduleおよび既存repositoryとする。公開名称・説明・画像では第三者作品との提携や公式性を示唆せず、`AI companion`を使用する。
