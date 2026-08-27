@@ -56,12 +56,32 @@ On both Pixel and iPhone, Discord speech reached Codex and the Codex response au
 ## 📦 Requirements
 
 - Node.js 26 or later
-- A Discord bot and a private Discord server
+- A dedicated Application/Bot created in the Discord Developer Portal, plus its Bot Token
+- A private Discord server with one text control channel and one voice channel
 - A native addon backed by Discord's official DAVE implementation
 - Codex Desktop and the target Voice Talk task
 - 🪟 Windows: VB-CABLE, ffmpeg, and PowerShell
 - 🍎 macOS: ffmpeg and Keychain; the live-call runner is still in development
 - 🐧 Ubuntu: waiting for official GPT Live (Voice in Work/Codex) support; currently unsupported
+
+### 🤖 Required Discord Developer setup
+
+Cloning the repository alone cannot connect to Discord. Create one dedicated Application in the [Discord Developer Portal](https://discord.com/developers/applications), add a bot user and issue its Bot Token on the `Bot` page, then install it into your private server from `Installation`.
+
+| Item | Required setting |
+| --- | --- |
+| Install scopes | `bot`, `applications.commands` |
+| Bot channel permissions | `VIEW_CHANNEL`, `CONNECT`, `SPEAK`, `SEND_MESSAGES`, `READ_MESSAGE_HISTORY` |
+| Operator permission | `USE_APPLICATION_COMMANDS` in the text control channel |
+| Privileged Gateway Intents | None; leave all of them disabled |
+| IDs stored in local config | guild, voice channel, text channel, and allowlisted Discord user |
+| Secret | Bot Token only; store it in DPAPI on Windows or Keychain on macOS |
+
+No separate “Discord API key,” Client Secret, OAuth user token, Webhook URL, or Interactions Endpoint URL is required. The Application ID is resolved from Discord together with the bot identity at startup and is not entered manually. Only the four IDs copied with Discord Developer Mode belong in the Git-ignored `config/bridge.local.json`.
+
+Discodex uses Discord REST API v10 to register and read back guild commands, Gateway for interactions and voice state, and Voice Gateway v8 with UDP, Opus, and official DAVE for calls. After control starts, `/connect`, `/disconnect`, `/status`, and `/gain` are registered in the target guild.
+
+Official setup references: [Build your first Discord bot](https://docs.discord.com/developers/quick-start/getting-started) · [OAuth2 and permissions](https://docs.discord.com/developers/platform/oauth2-and-permissions) · [Voice connections](https://docs.discord.com/developers/topics/voice-connections)
 
 ## 🛠️ Installation
 
@@ -75,7 +95,7 @@ npm test
 npm run preflight:discord
 ```
 
-Grant the Discord bot only `VIEW_CHANNEL`, `CONNECT`, `SPEAK`, `SEND_MESSAGES`, `READ_MESSAGE_HISTORY`, and `USE_APPLICATION_COMMANDS`. Put the guild, voice/text channel, and allowlisted user IDs in the ignored `config/bridge.local.json`. Store the bot token in DPAPI on Windows or Login Keychain on macOS—never in JSON, `.env`, command-line arguments, logs, or chat.
+Grant the bot only the least-privilege permissions listed above. Put the guild, voice/text channel, and allowlisted user IDs in the ignored `config/bridge.local.json`. Store the bot token in DPAPI on Windows or Login Keychain on macOS—never in JSON, `.env`, command-line arguments, logs, or chat.
 
 See ⚙️ [local Discord setup](docs/DISCORD_LOCAL_SETUP.md) for configuration and credential preparation, and the 📘 [operations runbook](docs/DISCORD_VOICE_RUNBOOK.md) for official libdave builds and advanced diagnosis. Normal connection and recovery are documented below so users do not need to assemble the basic workflow from separate documents.
 

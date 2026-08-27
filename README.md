@@ -56,12 +56,32 @@ PixelとiPhoneの両方で、スマートフォンのDiscord音声がCodexへ届
 ## 📦 必要条件
 
 - Node.js 26以降
-- Discord botと招待制Discordサーバー
+- Discord Developer Portalで作成した専用Application／Botと、そのBot Token
+- Botを導入する招待制Discordサーバーと、操作用text channel／通話用voice channel
 - Discord公式DAVE対応のnative addon
 - Codex Desktopと対象のVoice Talkタスク
 - 🪟 Windows: VB-CABLE、ffmpeg、PowerShell
 - 🍎 macOS: ffmpeg、Keychain（実通話ランナーは開発中）
 - 🐧 Ubuntu: GPT Live（Work / Codex Voice）の公式対応待ち。現時点ではサポート対象外
+
+### 🤖 Discord Developer設定（必須）
+
+リポジトリをcloneするだけではDiscordへ接続できません。利用者自身の[Discord Developer Portal](https://discord.com/developers/applications)で専用Applicationを1つ作成し、`Bot`ページでBot userとBot Tokenを発行して、`Installation`から自分の招待制serverへ導入します。
+
+| 項目 | 必要な設定 |
+| --- | --- |
+| Install scopes | `bot`、`applications.commands` |
+| Botのchannel権限 | `VIEW_CHANNEL`、`CONNECT`、`SPEAK`、`SEND_MESSAGES`、`READ_MESSAGE_HISTORY` |
+| 操作利用者の権限 | 操作用text channelで`USE_APPLICATION_COMMANDS` |
+| Privileged Gateway Intents | 不要。すべてOFFのまま使用 |
+| local設定へ入れるID | guild、voice channel、text channel、許可するDiscord user |
+| 秘密情報 | Bot Tokenだけ。WindowsはDPAPI、macOSはKeychainへ保存 |
+
+別の「Discord API key」、Client Secret、OAuth user token、Webhook URL、Interactions Endpoint URLは不要です。Application IDは起動時にDiscord APIからBot identityとともに取得するため、手入力しません。DiscordのDeveloper Modeで取得した4種類のIDだけをGit対象外の`config/bridge.local.json`へ設定します。
+
+DiscodexはDiscord REST API v10でguild commandを登録・readbackし、Gatewayでinteractionとvoice stateを受け、Voice Gateway v8、UDP、Opus、公式DAVEで通話します。起動後に`/connect`、`/disconnect`、`/status`、`/gain`が対象guildへ登録されます。
+
+公式手順: [Discord Botの作成](https://docs.discord.com/developers/quick-start/getting-started) · [OAuth2と権限](https://docs.discord.com/developers/platform/oauth2-and-permissions) · [Voice接続](https://docs.discord.com/developers/topics/voice-connections)
 
 ## 🛠️ インストール
 
@@ -75,7 +95,7 @@ npm test
 npm run preflight:discord
 ```
 
-セットアップで使うDiscord botには `VIEW_CHANNEL`、`CONNECT`、`SPEAK`、`SEND_MESSAGES`、`READ_MESSAGE_HISTORY`、`USE_APPLICATION_COMMANDS` だけを許可します。guild、voice/text channel、許可userはGit対象外の `config/bridge.local.json` に設定し、bot tokenはWindowsではDPAPI、macOSではKeychainに保存します。JSON、`.env`、コマンド引数、チャットにtokenを書かないでください。
+Botには上記の最小権限だけを許可します。guild、voice/text channel、許可userはGit対象外の `config/bridge.local.json` に設定し、bot tokenはWindowsではDPAPI、macOSではKeychainに保存します。JSON、`.env`、コマンド引数、チャットにtokenを書かないでください。
 
 設定値と資格情報の準備は ⚙️ [Discordローカル設定](docs/DISCORD_LOCAL_SETUP.md)、公式libdaveのビルドと障害調査は 📘 [運用Runbook](docs/DISCORD_VOICE_RUNBOOK.md) にあります。日常の接続・復旧操作は以下のREADME内で完結します。
 
