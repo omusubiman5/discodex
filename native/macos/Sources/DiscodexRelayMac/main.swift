@@ -32,6 +32,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
   private var controlRecoveryUsed = false
   private var controlHealthySince: Date?
   private var healthTimer: Timer?
+  private var sleepActivity: NSObjectProtocol?
 
   private lazy var repositoryRoot: URL = {
     if let configured = ProcessInfo.processInfo.environment["DISCODEX_REPO_ROOT"], !configured.isEmpty {
@@ -58,6 +59,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
       return
     }
     buildWindow()
+    sleepActivity = ProcessInfo.processInfo.beginActivity(options: [.idleSystemSleepDisabled], reason: "Keep Discodex Relay reachable for approved Discord commands")
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
     loadGainThenRefresh()
@@ -105,7 +107,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     shareStart.frame = NSRect(x: 25, y: 105, width: 190, height: 38); shareStart.target = self; shareStart.action = #selector(shareStartPressed)
     shareStop.frame = NSRect(x: 225, y: 105, width: 190, height: 38); shareStop.target = self; shareStop.action = #selector(shareStopPressed)
     root.addSubview(shareStart); root.addSubview(shareStop)
-    root.addSubview(label("Single control · Single runner · Global audio defaults unchanged", 12, .secondaryLabelColor, NSRect(x: 25, y: 35, width: 650, height: 22)))
+    root.addSubview(label("Single control · Single runner · System sleep blocked while Relay is open", 12, .secondaryLabelColor, NSRect(x: 25, y: 35, width: 650, height: 22)))
     setBusy(true)
   }
 
@@ -222,7 +224,10 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     return true
   }
 
-  func applicationWillTerminate(_ notification: Notification) { healthTimer?.invalidate() }
+  func applicationWillTerminate(_ notification: Notification) {
+    healthTimer?.invalidate()
+    if let sleepActivity { ProcessInfo.processInfo.endActivity(sleepActivity); self.sleepActivity = nil }
+  }
 }
 
 let application = NSApplication.shared

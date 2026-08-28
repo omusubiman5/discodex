@@ -39,6 +39,14 @@ if (-not $createdNew) {
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class DiscodexRelayPower {
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern UInt32 SetThreadExecutionState(UInt32 executionState);
+}
+'@
 
 $outputDirectory = Join-Path $repoRoot 'outputs'
 [IO.Directory]::CreateDirectory($outputDirectory) | Out-Null
@@ -246,7 +254,7 @@ $limiterLabel = New-RelayLabel 20 142 625 28 'Safe range: 25–100%  ·  Default
 $gainPanel.Controls.AddRange(@($gainHeading, $gainLabel, $gainSlider, $applyButton, $limiterLabel))
 
 $footer = [Windows.Forms.Panel]::new(); $footer.SetBounds(0, 668, 720, 40); $footer.BackColor = $footerBackground
-$footerText = New-RelayLabel 24 10 650 20 'Single control · Single runner · Global audio defaults unchanged'; $footerText.ForeColor = $textMuted; $footerText.BackColor = $footerBackground; $footerText.Font = New-RelayFont 9
+$footerText = New-RelayLabel 24 10 650 20 'Single control · Single runner · System sleep blocked while Relay is open'; $footerText.ForeColor = $textMuted; $footerText.BackColor = $footerBackground; $footerText.Font = New-RelayFont 9
 $footer.Controls.Add($footerText)
 $form.Controls.AddRange(@($header, $blueAccent, $statusPanel, $sharePanel, $gainPanel, $footer))
 
@@ -272,6 +280,24 @@ function Set-RelayButtonState {
   $startButton.Enabled = $script:lastSnapshot.controlCount -le 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent -and ((-not $script:lastSnapshot.routePrepared) -or $script:lastSnapshot.controlCount -eq 0)
   $stopButton.Enabled = $script:lastSnapshot.controlCount -eq 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent
   $shareStartButton.Enabled = $script:lastSnapshot.runnerCount -eq 1 -and $script:lastSnapshot.lockPresent
+}
+
+$script:powerAssertionActive = $false
+function Enable-RelayPowerAssertion {
+  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED keeps remote command control reachable
+  # while still allowing Windows to turn off the display normally.
+  $continuousSystemRequired = [Convert]::ToUInt32('80000001', 16)
+  $result = [DiscodexRelayPower]::SetThreadExecutionState($continuousSystemRequired)
+  if ($result -eq 0) { throw 'Relay could not prevent idle system sleep.' }
+  $script:powerAssertionActive = $true
+  Write-RelayAudit 'relay-idle-system-sleep-disabled' ''
+}
+
+function Disable-RelayPowerAssertion {
+  if (-not $script:powerAssertionActive) { return }
+  $continuous = [Convert]::ToUInt32('80000000', 16)
+  [void][DiscodexRelayPower]::SetThreadExecutionState($continuous)
+  $script:powerAssertionActive = $false
 }
 
 function Set-RelayBusy {
@@ -492,10 +518,12 @@ $form.Add_FormClosing({
 })
 
 try {
+  Enable-RelayPowerAssertion
   [Windows.Forms.Application]::EnableVisualStyles()
   [Windows.Forms.Application]::Run($form)
 }
 finally {
+  Disable-RelayPowerAssertion
   $operationTimer.Stop()
   $operationTimer.Dispose()
   $healthTimer.Stop()

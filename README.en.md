@@ -58,6 +58,12 @@ On the first run only, create the app by running `npm run build:relay:macos` in 
 
 See [macOS acceptance testing](#-macos-acceptance-testing) and the [macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md) for first-time builds, Keychain, BlackHole, configuration, shutdown, and evidence verification.
 
+### 💤 Sleep while waiting for remote connections
+
+On both Windows and macOS, **Discodex Relay prevents idle system sleep while its window is open**. The display may still turn off normally. Closing Relay releases the assertion and restores the operating system's normal power policy.
+
+Relay cannot override closing a laptop lid, manually requested sleep or hibernation, shutdown, battery depletion, or network loss. For remote availability, connect AC power, leave the lid open, and use a stable network connection.
+
 ### 📱 Real-device smartphone checks
 
 - Android (Pixel): bidirectional live voice between Discord and the same Codex Voice task verified

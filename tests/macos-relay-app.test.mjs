@@ -18,6 +18,9 @@ test("macOS Relay exposes the same launch and control workflow as Windows", () =
   assert.match(swift, /Timer\.scheduledTimer\(withTimeInterval: 2/);
   assert.match(swift, /controlRecoveryUsed/);
   assert.match(swift, /runnerCount == 0 && !state\.lockPresent/);
+  assert.match(swift, /beginActivity\(options: \[\.idleSystemSleepDisabled\]/);
+  assert.match(swift, /endActivity\(sleepActivity\)/);
+  assert.match(swift, /System sleep blocked while Relay is open/);
   assert.doesNotMatch(swift, /EXACT_CODEX_TASK_ID|Terminal/);
 });
 

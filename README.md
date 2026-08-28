@@ -58,6 +58,12 @@ Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在
 
 初回構築、Keychain、BlackHole、設定ファイル、終了・証跡検査は[macOSテスター向け](#-macosテスター向け)と[macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md)を参照してください。
 
+### 💤 遠隔待受中のスリープ
+
+Windows／macOSとも、**Discodex Relayを開いている間はシステムのアイドルスリープを自動的に抑止**します。画面の自動消灯は妨げません。Relayを終了するとOS本来の電源設定へ戻ります。
+
+ノートPCの蓋を閉じる操作、手動sleep／休止、shutdown、battery切れ、network切断はRelayから防止できません。遠隔接続を待つ間はAC電源へ接続し、蓋を開けたまま、安定したnetworkに接続してください。
+
 ### 📱 スマートフォン実機確認
 
 - Android（Pixel）: Discordと同一Codex Voiceタスク間の双方向実通話を確認済み

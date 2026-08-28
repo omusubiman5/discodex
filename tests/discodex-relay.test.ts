@@ -35,6 +35,10 @@ test("Relay app exposes only fixed relay, gain, and screen-share controls", () =
   assert.match(source, /CODEX ROUTE SETUP NEEDED/);
   assert.match(source, /Codex Desktop needs one Relay-managed restart/);
   assert.match(source, /Use \/disconnect in Discord before closing/);
+  assert.match(source, /SetThreadExecutionState/);
+  assert.match(source, /ToUInt32\('80000001', 16\)/);
+  assert.match(source, /ToUInt32\('80000000', 16\)/);
+  assert.match(source, /System sleep blocked while Relay is open/);
   assert.doesNotMatch(source, /ScheduledTask|Registry|discodex:\/\/|cmd\.exe|run-meetron-windows-live/);
 });
 
