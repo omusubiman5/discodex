@@ -36,6 +36,40 @@ The macOS live-call path is implemented, but real-Mac end-to-end acceptance is n
 
 The Discord/DAVE/Opus foundation is technically portable to Ubuntu, but GPT Live (Voice in Work/Codex) is not currently offered as an official Ubuntu/Linux desktop capability. Discodex therefore does not support Ubuntu yet. Linux audio routing and real E2E validation are planned after [official Ubuntu support becomes available](https://help.openai.com/en/articles/20001275/). Confirmed technical gaps are consolidated in the [Ubuntu section of the technical and operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#ubuntu-linux-support).
 
+## 🚀 Where to start
+
+### 🪟 Windows
+
+1. Open the target task in Codex Desktop and start Voice Talk.
+2. In Explorer, double-click **`dist\Discodex Relay.lnk`** inside the repository. This is the Windows launch point.
+3. Press `Prepare Codex` or `Start Relay` once and wait for `RELAY READY`.
+4. Run `/status` and then `/connect` in the allowlisted Discord text channel.
+
+On the first run only, create the shortcut by running `npm run build:relay:windows` in PowerShell at the repository root. See [Prepare Discodex Relay on Windows](#-prepare-discodex-relay-on-windows) for the full setup.
+
+### 🍎 macOS
+
+The macOS build does not yet provide a Relay shortcut or `.app`. **Start it from Terminal.**
+
+1. At the repository root, launch Codex Desktop with loopback-only CDP:
+
+   ```zsh
+   open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
+   ```
+
+2. In the launched Codex Desktop, open the exact task under test and start Voice Talk.
+3. In another Terminal, replace `EXACT_CODEX_TASK_ID` with the UUID of the currently open task and start the macOS runner:
+
+   ```zsh
+   cd /path/to/discodex
+   mkdir -p outputs
+   zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
+   ```
+
+4. After the runner starts, run `/status` and then `/connect` in the allowlisted Discord text channel.
+
+See [macOS acceptance testing](#-macos-acceptance-testing) and the [macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md) for first-time builds, Keychain, BlackHole, configuration, shutdown, and evidence verification.
+
 ### 📱 Real-device smartphone checks
 
 - Android (Pixel): bidirectional live voice between Discord and the same Codex Voice task verified
@@ -61,7 +95,7 @@ On both Pixel and iPhone, Discord speech reached Codex and the Codex response au
 - A native addon backed by Discord's official DAVE implementation
 - Codex Desktop and the target Voice Talk task
 - 🪟 Windows: VB-CABLE, ffmpeg, and PowerShell
-- 🍎 macOS: ffmpeg and Keychain; the live-call runner is still in development
+- 🍎 macOS: BlackHole 2ch, ffmpeg, Xcode Command Line Tools, CMake, and Keychain; the runner is implemented and awaiting real-Mac acceptance
 - 🐧 Ubuntu: waiting for official GPT Live (Voice in Work/Codex) support; currently unsupported
 
 ### 🤖 Required Discord Developer setup

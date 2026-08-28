@@ -36,6 +36,40 @@ macOS実通話経路は実装済みですが、Mac実機E2E受入は未完了で
 
 Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在GPT Live（Work / Codex Voice）はUbuntu/Linux向けの公式デスクトップ機能として提供されていません。そのため、DiscodexのUbuntu版は現時点では未対応です。[OpenAIによるUbuntu対応](https://help.openai.com/en/articles/20001275/)後に、音声経路の実装と実機E2E検証を開始します。確認済みの技術課題は[技術・運用RunbookのUbuntu節](docs/DISCORD_VOICE_RUNBOOK.md#ubuntu-linux-support)へ統合しています。
 
+## 🚀 起動場所（最初にここ）
+
+### 🪟 Windows
+
+1. Codex Desktopで対象タスクを開き、Voice Talkを開始します。
+2. Explorerでrepository内の **`dist\Discodex Relay.lnk`** をダブルクリックします。これがWindows版の起動入口です。
+3. Relayの `Prepare Codex` または `Start Relay` を1回押し、`RELAY READY` を確認します。
+4. Discordの許可済みtext channelで `/status`、続けて `/connect` を実行します。
+
+初回だけ、shortcutを作るためrepository rootのPowerShellで `npm run build:relay:windows` を実行します。詳しくは[WindowsでDiscodex Relayを準備](#-windowsでdiscodex-relayを準備)を参照してください。
+
+### 🍎 macOS
+
+macOS版にRelay shortcutや `.app` はまだありません。**Terminalから起動します。**
+
+1. repository rootのTerminalでCodex Desktopをloopback限定CDP付きで起動します。
+
+   ```zsh
+   open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
+   ```
+
+2. 起動したCodex Desktopで検証対象のタスクを開き、Voice Talkを開始します。
+3. 別のTerminalで、`EXACT_CODEX_TASK_ID` を現在開いているタスクのUUIDへ置き換えてmacOS runnerを起動します。
+
+   ```zsh
+   cd /path/to/discodex
+   mkdir -p outputs
+   zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
+   ```
+
+4. runnerが起動したら、Discordの許可済みtext channelで `/status`、続けて `/connect` を実行します。
+
+初回構築、Keychain、BlackHole、設定ファイル、終了・証跡検査は[macOSテスター向け](#-macosテスター向け)と[macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md)を参照してください。
+
 ### 📱 スマートフォン実機確認
 
 - Android（Pixel）: Discordと同一Codex Voiceタスク間の双方向実通話を確認済み
@@ -61,7 +95,7 @@ PixelとiPhoneの両方で、スマートフォンのDiscord音声がCodexへ届
 - Discord公式DAVE対応のnative addon
 - Codex Desktopと対象のVoice Talkタスク
 - 🪟 Windows: VB-CABLE、ffmpeg、PowerShell
-- 🍎 macOS: ffmpeg、Keychain（実通話ランナーは開発中）
+- 🍎 macOS: BlackHole 2ch、ffmpeg、Xcode Command Line Tools、CMake、Keychain（runner実装済み・実機受入待ち）
 - 🐧 Ubuntu: GPT Live（Work / Codex Voice）の公式対応待ち。現時点ではサポート対象外
 
 ### 🤖 Discord Developer設定（必須）
