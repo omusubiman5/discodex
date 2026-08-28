@@ -170,7 +170,11 @@ static napi_value NAPI_CALL SessionConfigure(napi_env env, napi_callback_info in
   std::string groupId, userId;
   if (!ReadString(env, args[0], groupId) || !ReadString(env, args[1], userId)) return BooleanResult(env, false);
   char* end = nullptr;
+#ifdef _WIN32
   const auto group = _strtoui64(groupId.c_str(), &end, 10);
+#else
+  const auto group = std::strtoull(groupId.c_str(), &end, 10);
+#endif
   if (!end || *end != '\0' || group == 0) return BooleanResult(env, false);
   const auto version = daveMaxSupportedProtocolVersion();
   daveSessionInit(readySession, version, group, userId.c_str());

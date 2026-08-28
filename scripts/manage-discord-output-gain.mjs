@@ -10,7 +10,8 @@ import {
 
 const action = process.argv[2];
 if (!new Set(["get", "set"]).has(action)) throw new Error("Usage: manage-discord-output-gain get|set <linear>");
-const runtimePath = process.env.CODEX_BRIDGE_MEETRON_RUNTIME_CONFIG || resolve("runtime/meetron-windows-live.json");
+const runtimePath = process.env.CODEX_BRIDGE_MEETRON_RUNTIME_CONFIG
+  || resolve(process.platform === "darwin" ? "runtime/meetron-macos-live.json" : "runtime/meetron-windows-live.json");
 const storePath = process.env.CODEX_BRIDGE_GAIN_STORE_PATH || resolve("runtime/discord-output-gain.json");
 const runtime = JSON.parse(await readFile(runtimePath, "utf8"));
 if (!/^\d{16,22}$/.test(runtime.discordGuildId ?? "") || !/^\d{16,22}$/.test(runtime.discordVoiceChannelId ?? "")) {

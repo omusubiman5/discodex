@@ -20,8 +20,10 @@
     "preflight:discord": "node src/preflight-cli.ts",
     "smoke:voice": "node src/discord-gateway-smoke.ts",
     "live:meetron:windows": "node scripts/run-meetron-windows-live.mjs",
+    "live:meetron:macos": "node scripts/run-meetron-macos-live.mjs",
+    "build:coreaudio:macos": "swift build -c release --package-path native/macos",
     "build:relay:windows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-discodex-relay.ps1",
     "test:acceptance": "node --test tests/product-acceptance.test.ts",
-    "test": "node --test tests/*.test.ts"
+    "test": "node --test tests/*.test.ts tests/*.test.mjs"
   }
 }

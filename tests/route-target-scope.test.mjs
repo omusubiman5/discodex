@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { selectIdentityScopedTargets } from "../scripts/route-target-scope.mjs";
@@ -39,6 +40,12 @@ test("identity scope selects the owned main and optional voice overlay without a
   assert.equal(selectIdentityScopedTargets(targets, "" ).length, 0);
   assert.equal(selectIdentityScopedTargets([...targets, { type: "page", id: "duplicate", url: "app://-/index.html", webSocketDebuggerUrl: "ws://fixture/duplicate" }], TEST_CODEX_TASK_ID_3).length, 0);
   assert.equal(selectIdentityScopedTargets([...targets, { type: "page", id: "overlay-a", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/a" }, { type: "page", id: "overlay-b", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://fixture/b" }], TEST_CODEX_TASK_ID_3).length, 0);
+});
+
+test("audio route accepts an exact OS-scoped virtual input label instead of hard-coding VB-CABLE", async () => {
+  const source = await readFile(script, "utf8");
+  assert.match(source, /CODEX_BRIDGE_VIRTUAL_AUDIO_INPUT_LABEL/);
+  assert.match(source, /device\.label === virtualInputLabel/);
 });
 
 test("route source contains identity-first scope and bounded restore retry", async () => {

@@ -30,7 +30,8 @@ if (stdinMode) {
 } else {
   const provider = createDiscordBotCredentialProvider();
   await useCredential(provider, async (credential) => {
-    const runtimeConfigPath = process.env.CODEX_BRIDGE_MEETRON_RUNTIME_CONFIG || resolve("runtime/meetron-windows-live.json");
+    const runtimeConfigPath = process.env.CODEX_BRIDGE_MEETRON_RUNTIME_CONFIG
+      || resolve(process.platform === "darwin" ? "runtime/meetron-macos-live.json" : "runtime/meetron-windows-live.json");
     if (!existsSync(runtimeConfigPath)) throw new Error("The approved Discord runtime target is not configured.");
     const stored = JSON.parse(await readFile(runtimeConfigPath, "utf8"));
     const controlScope = await resolveApprovedGuildControlScope(credential, stored.discordGuildId);

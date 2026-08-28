@@ -8,8 +8,8 @@ import { run } from "../src/cli.ts";
 const projectRoot = resolve(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 
 test("version comparison enforces the project Node floor", () => {
-  assert.equal(versionAtLeast("v24.15.0", "24.0.0"), true);
-  assert.equal(versionAtLeast("v23.9.0", "24.0.0"), false);
+  assert.equal(versionAtLeast("v26.0.0", "26.0.0"), true);
+  assert.equal(versionAtLeast("v25.9.0", "26.0.0"), false);
 });
 
 test("dependency manifest pins only official libdave crypto", () => {
@@ -19,6 +19,7 @@ test("dependency manifest pins only official libdave crypto", () => {
   assert.equal(manifest.libdave.persistentKeys, false);
   assert.equal(manifest.discordVoiceSdk.daveProvider, "@snazzah/davey");
   assert.equal(manifest.discordVoiceSdk.decision, "connection-layer-reference-only");
+  assert.ok(manifest.macosNativeBuild.required.includes("swift"));
 });
 
 test("dependencies command reports the pinned official manifest as JSON", async () => {

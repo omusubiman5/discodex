@@ -8,6 +8,7 @@ logs/
 coverage/
 outputs/
 dist/
+native/macos/.build/
 %SystemDrive%/
 assets/tts-cache/
 work/*

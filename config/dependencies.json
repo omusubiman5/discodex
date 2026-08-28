@@ -20,7 +20,7 @@
     "reason": "The package does not expose a supported discord/libdave injection point. Third-party DAVE cannot satisfy the official-libdave-only policy."
   },
   "node": {
-    "projectMinimum": "24.0.0"
+    "projectMinimum": "26.0.0"
   },
   "windowsNativeBuild": {
     "required": ["git", "cmake", "cl"],
@@ -28,7 +28,7 @@
     "dependencyBootstrap": "libdave cpp/vcpkg submodule"
   },
   "macosNativeBuild": {
-    "required": ["git", "cmake", "clang"],
+    "required": ["git", "cmake", "clang", "swift"],
     "optional": ["ninja"],
     "dependencyBootstrap": "libdave cpp/vcpkg submodule"
   }

@@ -4,6 +4,8 @@ const applyPhysical = process.argv.includes("--apply-physical-input");
 const applyGraph = process.argv.includes("--apply-cable-graph-input");
 const reconcilePhysical = process.argv.includes("--reconcile-physical-input");
 const trace = process.env.CODEX_ROUTE_TRACE === "1";
+const virtualAudioInputLabel = process.env.CODEX_BRIDGE_VIRTUAL_AUDIO_INPUT_LABEL || "CABLE Output (VB-Audio Virtual Cable)";
+if (!virtualAudioInputLabel.trim() || virtualAudioInputLabel.length > 128) throw new Error("The isolated virtual audio input label is invalid.");
 import { selectIdentityScopedTargets } from "./route-target-scope.mjs";
 const traceStartedAt = Date.now();
 const traceMark = (stage, fields = {}) => {
@@ -118,14 +120,14 @@ for (const [targetIndex, target] of scopedTargets.entries()) {
     traceMark("sender-inspect-start", { targetIndex, mode: applyCable ? "cable" : applyPhysical ? "physical" : applyGraph ? "graph" : reconcilePhysical ? "reconcile" : "inspect" });
     const inspected = await call("Runtime.callFunctionOn", {
       objectId: instances.objects.objectId,
-      functionDeclaration: `async function(mode, destinationNodes, audioContexts) {
+      functionDeclaration: `async function(mode, destinationNodes, audioContexts, virtualInputLabel) {
         const peers = this.filter((peer) => ['connected', 'connecting'].includes(peer.connectionState));
         const rollback = globalThis.__codexBridgeAudioGraphRollback ?? globalThis.__codexBridgeAudioRollback;
         const peerEntries = peers.flatMap((peer) => peer.getSenders().map((sender) => ({ peer, sender })));
         const live = peerEntries
           .filter(({ sender }) => sender.track?.kind === 'audio' && sender.track.readyState === 'live');
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const cable = devices.filter((device) => device.kind === 'audioinput' && device.label === 'CABLE Output (VB-Audio Virtual Cable)');
+        const cable = devices.filter((device) => device.kind === 'audioinput' && device.label === virtualInputLabel);
         const before = live.filter(({ sender }) => sender.track.getSettings?.().deviceId === cable[0]?.deviceId).length;
         const currentTrackLabel = live.length === 1 ? live[0].sender.track.label : undefined;
         const previousTrackLabel = mode === 'cable' ? currentTrackLabel : undefined;
@@ -170,7 +172,7 @@ for (const [targetIndex, target] of scopedTargets.entries()) {
           const cableTrack = cableStream.getAudioTracks()[0];
           if (!cableTrack || cableTrack.getSettings?.().deviceId !== cable[0].deviceId) {
             cableStream.getTracks().forEach((track) => track.stop());
-            throw new Error('CABLE graph track identity mismatch.');
+            throw new Error('Virtual-audio graph track identity mismatch.');
           }
           const ownedContext = destinations.length === 0 ? new AudioContext({ sampleRate: 48000 }) : undefined;
           if (ownedContext?.state === 'suspended') await ownedContext.resume();
@@ -336,6 +338,7 @@ for (const [targetIndex, target] of scopedTargets.entries()) {
         { value: applyCable ? "cable" : applyPhysical ? "physical" : applyGraph ? "graph" : reconcilePhysical ? "reconcile" : "inspect" },
         destinationInstances ? { objectId: destinationInstances } : { value: null },
         audioContextInstances ? { objectId: audioContextInstances } : { value: null },
+        { value: virtualAudioInputLabel },
       ],
       awaitPromise: true,
       returnByValue: true,

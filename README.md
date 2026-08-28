@@ -29,10 +29,10 @@ Discodexは、DISCORDERを支援するAI Gaming Life Companion構想 **Project R
 | 環境 | 状態 | 内容 |
 | --- | --- | --- |
 | 🪟 Windows | ✅ 対応 | Discord制御、Codex Desktop接続、VB-CABLE音声経路、Relay UI、実通話ランナー |
-| 🍎 macOS | 🚧 部分対応 | Keychain、ffmpeg Opus/PCM adapter、POSIX native-addon loader、共通コア |
+| 🍎 macOS | 🧪 実機受入待ち | BlackHole/Core Audio経路、sender rollback、本番runner、Keychain、libdave build |
 | 🐧 Ubuntu | ⏳ 予定 | GPT Live（Work / Codex Voice）のUbuntu公式対応後に開発・実機検証予定 |
 
-macOSの部品と自動テストは実装済みですが、Core Audio実通話ランナーとMac実機E2Eは未完了です。現時点では「WindowsとMacの完全対応」とは表記しません。
+macOS実通話経路は実装済みですが、Mac実機E2E受入は未完了です。受入matrixが完走するまではmacOS対応済みとは表記しません。実機手順は[macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md)を参照してください。
 
 Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在GPT Live（Work / Codex Voice）はUbuntu/Linux向けの公式デスクトップ機能として提供されていません。そのため、DiscodexのUbuntu版は現時点では未対応です。[OpenAIによるUbuntu対応](https://help.openai.com/en/articles/20001275/)後に、音声経路の実装と実機E2E検証を開始します。確認済みの技術課題は[技術・運用RunbookのUbuntu節](docs/DISCORD_VOICE_RUNBOOK.md#ubuntu-linux-support)へ統合しています。
 
@@ -146,21 +146,61 @@ runnerまたはlockが有効な間、Relayはアプリ終了やcontrol停止を�
 
 ## 🍎 macOSテスター向け
 
-macOS 13+（Apple Silicon / Intel）は現在、**公開試験中**です。共通コア、Keychain資格情報、ffmpeg Opus/PCM adapter、POSIX native-addon loaderはありますが、Core Audio実通話runnerとMac実機E2Eは未完了です。Windows版と同じ完成度ではありません。
+macOS 13+（Apple Silicon / Intel）向けの実装は完了しており、現在は**Mac実機での最終受入待ち**です。実装済みの範囲は次のとおりです。
 
-まず安全な非接続検査を実行してください。
+- BlackHole 2chを直接選択する専用Core Audio host（macOS全体の既定入出力は変更しません）
+- 開いている対象CodexタスクのWebRTC senderだけを差し替え、`/disconnect` または異常時に元の物理マイクへ戻すattach/rollback
+- macOS本番runner、Login Keychainからのtoken取得、Apple Silicon / Intel両対応の公式libdave build
+- DAVE、双方向音声、2往復、ratchet/epoch、ログ秘匿を機械判定するE2E証跡検査
+
+Windows用のVB-CABLEはmacOSでは使いません。macOS経路は **BlackHole 2ch + Core Audio** です。Windows上の自動テストはMac実機合格の代替にならないため、下記の受入が完了するまではWindows版と同じ「対応済み」表記にはしません。
+
+### 必要なもの
+
+- macOS 13以降、Node.js 26以降
+- BlackHole 2ch（48,000 Hz・2ch）、ffmpeg、Xcode Command Line Tools、CMake
+- Codex Desktopのマイク権限
+- Login Keychainに保存したDiscord bot token
+- `config/meetron-macos-live.example.json` をコピーした `runtime/meetron-macos-live.json`（許可するDiscord IDだけを設定）
+
+### 初回構築と自動テスト
 
 ```zsh
 git clone https://github.com/omusubiman5/discodex.git
 cd discodex
 npm ci
+zsh scripts/build-libdave-addon-macos.sh
+npm run build:coreaudio:macos
 npm test
 npm run test:acceptance
-npm run preflight:discord
-npm run dry-run:discord
 ```
 
-必要条件はNode.js 26+、ffmpeg、Xcode Command Line Tools、CMake、ログインKeychainです。公式libdave addonはMacの実際のアーキテクチャ（arm64 / x64）とNode ABIに合わせてビルドします。要件は [技術・運用RunbookのDAVE統合節](docs/DISCORD_VOICE_RUNBOOK.md#dave-integration) を使ってください。
+### Codexとブリッジの起動
+
+Codexをloopback限定のCDPで起動し、検証対象のタスクを開いてVoice Talkを開始します。
+
+```zsh
+open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
+mkdir -p outputs
+zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
+```
+
+許可済みDiscord text channelで `/status`、`/connect` の順に実行します。検証後は `/disconnect`、terminalで `Ctrl-C` の順に終了し、証跡を検査します。
+
+```zsh
+node scripts/verify-macos-e2e-evidence.mjs outputs/macos-live-e2e.jsonl
+```
+
+### 実機合格条件
+
+- 外部Discordの声が、指定したCodexタスクだけへ届く
+- その発話に対応するCodexの音声応答がDiscordへ戻る
+- 2往復以上、割り込み発話、voice channel再参加が成功する
+- DAVEが有効で、音漏れ、物理マイク混入、feedback、clippingがない
+- `/disconnect` 後もCodex Voiceは生きたまま、元の物理マイク、runner、lockが復元される
+- E2E証跡検査が成功し、token、Discord ID、発話本文、音声dataがログに含まれない
+
+Keychain登録、設定ファイル、障害時の復旧、全チェック項目は[macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md)を参照してください。
 
 フィードバックには次の情報だけを含めてください。
 

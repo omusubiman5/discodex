@@ -32,6 +32,7 @@ import type { CodexAppServerRpcTransport } from "./core/codex-audio-route.ts";
 import { DesktopOwnedCodexAppServerTransport } from "./core/codex-app-server-rpc.ts";
 import { MeetronDirectAudioBridge } from "../work/meetron/discord/direct-audio-bridge.mjs";
 import { WindowsExistingGptLiveAudio } from "../work/meetron/discord/windows-gpt-live-audio.mjs";
+import { MacosExistingGptLiveAudio } from "./adapters/macos/existing-gpt-live-audio.mjs";
 import { DesktopExistingTaskAudio } from "../work/meetron/discord/desktop-existing-task-audio.mjs";
 
 const DISCORD_GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
@@ -506,8 +507,10 @@ export interface CurrentTaskLiveCallOptions extends Omit<UdpDiscoverySmokeOption
   appServerTransport?: CodexAppServerRpcTransport & { connect?(): Promise<void>; close?(): void };
   maxReconnectAttempts?: number;
   existingTaskAudio?: {
+    readonly platform?: "win32" | "darwin";
     readonly desktopProcessId: number;
-    readonly virtualCableRenderEndpointId: string;
+    readonly virtualCableRenderEndpointId?: string;
+    readonly virtualAudioDeviceName?: string;
     readonly expectedSessionIdentity: string;
     readonly verifyExistingSession: (expected: { existingGptLiveProcessId: number; expectedSessionIdentity: string }) => Promise<{
       readonly matches: boolean;
@@ -1710,12 +1713,19 @@ export async function runCurrentTaskLiveCall(options: CurrentTaskLiveCallOptions
       || preflight.sessionIdentity.toLowerCase() !== attachment.expectedSessionIdentity.toLowerCase()) {
       throw new Error(`Existing Codex realtime attachment preflight failed: ${preflight.reason || "identity-or-voice-state"}.`);
     }
-    const input = new WindowsExistingGptLiveAudio({
-      existingGptLiveProcessId: attachment.desktopProcessId,
-      virtualCableRenderEndpointId: attachment.virtualCableRenderEndpointId,
-      expectedSessionIdentity: attachment.expectedSessionIdentity,
-      verifyExistingSession: attachment.verifyExistingSession,
-    });
+    const input = attachment.platform === "darwin"
+      ? new MacosExistingGptLiveAudio({
+        existingGptLiveProcessId: attachment.desktopProcessId,
+        virtualAudioDeviceName: attachment.virtualAudioDeviceName,
+        expectedSessionIdentity: attachment.expectedSessionIdentity,
+        verifyExistingSession: attachment.verifyExistingSession,
+      })
+      : new WindowsExistingGptLiveAudio({
+        existingGptLiveProcessId: attachment.desktopProcessId,
+        virtualCableRenderEndpointId: attachment.virtualCableRenderEndpointId,
+        expectedSessionIdentity: attachment.expectedSessionIdentity,
+        verifyExistingSession: attachment.verifyExistingSession,
+      });
     const transport = options.appServerTransport;
     if (!transport) throw new Error("A read-only current-task transcript observer is required before network activity.");
     if (!(transport instanceof DesktopOwnedCodexAppServerTransport)) throw new Error("Direct existing-task WebRTC audio requires the identity-pinned Desktop transport.");
@@ -1742,7 +1752,7 @@ export async function runCurrentTaskLiveCall(options: CurrentTaskLiveCallOptions
       async confirm(inputSequence: number): Promise<boolean> {
         const baseline = confirmationBaselines.get(inputSequence);
         // The production preflight has already replaced the foreground sender
-        // with the isolated VB-CABLE graph. Desktop transcript notifications
+        // with the isolated OS-scoped virtual-audio graph. Desktop transcript notifications
         // strengthen evidence but are not a writer or join dependency.
         const notificationObserved = baseline !== undefined && observedUserTranscriptGeneration > baseline;
         confirmationBaselines.delete(inputSequence);

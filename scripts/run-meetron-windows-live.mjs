@@ -23,13 +23,19 @@ export function loadMeetronWindowsLiveEnvironment(environment = process.env) {
   };
 }
 
-export function loadMeetronWindowsLiveConfiguration(environment = process.env) {
+export function loadMeetronDesktopLiveConfiguration(environment = process.env, platform = "win32") {
+  if (platform !== "win32" && platform !== "darwin") throw new Error("A supported desktop configuration platform is required.");
   const threadId = requiredEnvironment("CODEX_THREAD_ID", environment);
   if (!/^[0-9a-f-]{20,}$/i.test(threadId)) throw new Error("CODEX_THREAD_ID must identify the exact current Codex task.");
   const debuggerEndpoint = requiredEnvironment("CODEX_DESKTOP_DEBUGGER_ENDPOINT", environment);
   const desktopProcessId = Number(requiredEnvironment("CODEX_BRIDGE_CODEX_DESKTOP_PID", environment));
   if (!Number.isSafeInteger(desktopProcessId) || desktopProcessId <= 0) throw new Error("CODEX_BRIDGE_CODEX_DESKTOP_PID must identify the existing Codex Desktop root process.");
-  const virtualCableRenderEndpointId = requiredEnvironment("CODEX_BRIDGE_VB_CABLE_RENDER_ENDPOINT_ID", environment);
+  const virtualCableRenderEndpointId = platform === "win32"
+    ? requiredEnvironment("CODEX_BRIDGE_VB_CABLE_RENDER_ENDPOINT_ID", environment)
+    : undefined;
+  const virtualAudioDeviceName = platform === "darwin"
+    ? requiredEnvironment("CODEX_BRIDGE_VIRTUAL_AUDIO_DEVICE_NAME", environment)
+    : undefined;
   const debuggerUrl = new URL(debuggerEndpoint);
   if (debuggerUrl.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(debuggerUrl.hostname)) {
     throw new Error("CODEX_DESKTOP_DEBUGGER_ENDPOINT must be an HTTP loopback endpoint.");
@@ -40,7 +46,11 @@ export function loadMeetronWindowsLiveConfiguration(environment = process.env) {
   if (!/^\d{16,22}$/.test(guildId) || !/^\d{16,22}$/.test(channelId)) {
     throw new Error("The explicit Discord guild/channel target is invalid.");
   }
-  return { threadId, debuggerEndpoint: debuggerUrl.href.replace(/\/$/, ""), desktopProcessId, virtualCableRenderEndpointId, target: { guildId, channelId } };
+  return { threadId, debuggerEndpoint: debuggerUrl.href.replace(/\/$/, ""), desktopProcessId, virtualCableRenderEndpointId, virtualAudioDeviceName, target: { guildId, channelId } };
+}
+
+export function loadMeetronWindowsLiveConfiguration(environment = process.env) {
+  return loadMeetronDesktopLiveConfiguration(environment, "win32");
 }
 
 export function expectedSessionIdentityForThread(threadId) {
@@ -118,9 +128,11 @@ export function createSupportedStopWatcher({
   };
 }
 
-export async function runMeetronWindowsLive({ environment = process.env, signal, observer, gainProvider } = {}) {
+export async function runMeetronDesktopLive({ environment = process.env, signal, observer, gainProvider, platform, phase } = {}) {
+  if (platform !== "win32" && platform !== "darwin") throw new Error("A supported desktop live-runner platform is required.");
+  if (phase !== "meetron-windows-live" && phase !== "meetron-macos-live") throw new Error("A supported desktop live-runner phase is required.");
   environment = loadMeetronWindowsLiveEnvironment(environment);
-  const configuration = loadMeetronWindowsLiveConfiguration(environment);
+  const configuration = loadMeetronDesktopLiveConfiguration(environment, platform);
   const createTransport = () => new DesktopOwnedCodexAppServerTransport({
     threadId: configuration.threadId,
     debuggerEndpoint: configuration.debuggerEndpoint,
@@ -178,7 +190,7 @@ export async function runMeetronWindowsLive({ environment = process.env, signal,
     "dave-ratchet-selected", "reconnecting",
   ]);
   const emit = (record) => process.stdout.write(`${JSON.stringify({
-    phase: "meetron-windows-live",
+    phase,
     timestamp: new Date().toISOString(),
     elapsedMs: Math.round(performance.now() - liveStartedAt),
     ...record,
@@ -198,8 +210,10 @@ export async function runMeetronWindowsLive({ environment = process.env, signal,
       threadId: configuration.threadId,
       appServerTransport: transport,
       existingTaskAudio: {
+        platform,
         desktopProcessId: configuration.desktopProcessId,
         virtualCableRenderEndpointId: configuration.virtualCableRenderEndpointId,
+        virtualAudioDeviceName: configuration.virtualAudioDeviceName,
         expectedSessionIdentity,
         verifyExistingSession,
       },
@@ -255,7 +269,7 @@ export async function runMeetronWindowsLive({ environment = process.env, signal,
           emit({ state: "discord-input-observed", level: { rms: level.rms, peak: level.peak } });
         }
       },
-      onLiveInputRouteEvidence: (evidence) => emit({ state: "vb-cable-render-evidence", evidence }),
+      onLiveInputRouteEvidence: (evidence) => emit({ state: platform === "darwin" ? "coreaudio-render-evidence" : "vb-cable-render-evidence", evidence }),
       onLiveTurnGateEvidence: (evidence) => emit({ state: "turn-gate-evidence", evidence }),
       onLiveOutputLevel: (level) => {
         if (!outputObserved && level.nonSilentSamples > 0) {
@@ -302,6 +316,10 @@ export async function runMeetronWindowsLive({ environment = process.env, signal,
     emitHealth();
     transport.close();
   }
+}
+
+export function runMeetronWindowsLive(options = {}) {
+  return runMeetronDesktopLive({ ...options, platform: "win32", phase: "meetron-windows-live" });
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -1,6 +1,7 @@
 import type { BridgeConfig } from "../../core/contracts.ts";
 import { acquireLiveCallProcessLock } from "../../discord-gateway-smoke.ts";
 import { runMeetronWindowsLive } from "../../../scripts/run-meetron-windows-live.mjs";
+import { runMeetronMacosLive } from "../../../scripts/run-meetron-macos-live.mjs";
 import { createDiscordBridgeLifecycle, createLiveCallRuntimeSnapshotProvider, type BridgeRuntimeSnapshot } from "./bridge-lifecycle.ts";
 import { DiscordUiControlSurface } from "./ui-controls.ts";
 import { DiscordOutputGainPersistence } from "./output-gain-safety.ts";
@@ -122,7 +123,7 @@ export function createCodexCallInputRoute(
         && graph.graphSenderMatched === true;
       if (graph.applied !== true || graph.graphAttached !== true || graph.cableSenders !== 0 || !graphHealthy) {
         await inspect("--apply-physical-input").catch(() => undefined);
-        throw new Error("VB-CABLE could not be attached to a healthy current Codex audio graph.");
+        throw new Error("The isolated virtual input could not be attached to a healthy current Codex audio graph.");
       }
     },
     async restore() {
@@ -155,7 +156,7 @@ export function createCodexCallInputRoute(
 /** Composition used by the production control entrypoint; runner ownership stays bridge-local. */
 export function createProductionDiscordControlRuntime(
   config: BridgeConfig["discord"],
-  runner: ProductionRunner = runMeetronWindowsLive as unknown as ProductionRunner,
+  runner: ProductionRunner = (process.platform === "darwin" ? runMeetronMacosLive : runMeetronWindowsLive) as unknown as ProductionRunner,
   inputRoute: CodexCallInputRoute = createCodexCallInputRoute(),
   options: { readonly lockPath?: string } = {},
 ) {
@@ -173,11 +174,12 @@ export function createProductionDiscordControlRuntime(
     if (message.includes("route is not configured") || message.includes("debugger endpoint") || message.includes("Loopback Codex debugger")) return "codex-debugger-unavailable" as const;
     if (message.includes("Voice Talk") || message.includes("foreground voice")) return "codex-voice-inactive" as const;
     if (message.includes("no live audio sender") || message.includes("Exactly one reversible")) return "codex-sender-unavailable" as const;
-    if (message.includes("attached reversibly") || message.includes("audio graph") || message.includes("could not be reconciled")) return "codex-route-attachment-failed" as const;
+    if (message.includes("attached reversibly") || message.includes("audio graph") || message.includes("could not be reconciled")
+        || message.includes("Core Audio") || message.includes("virtual input")) return "codex-route-attachment-failed" as const;
     return "discord-voice-ready-failed" as const;
   };
   const lifecycle = createDiscordBridgeLifecycle({
-    owner: "meetron-windows-live",
+    owner: process.platform === "darwin" ? "meetron-macos-live" : "meetron-windows-live",
     onConnect: () => {
       if (task) return "connecting";
       controller = new AbortController(); release = acquireLiveCallProcessLock(options.lockPath);

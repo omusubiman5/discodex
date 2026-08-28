@@ -29,10 +29,10 @@ Discodex is the Discord connection module for **Project Raphael**, an AI Gaming 
 | Platform | Status | Included |
 | --- | --- | --- |
 | 🪟 Windows | ✅ Supported | Discord controls, Codex Desktop attachment, VB-CABLE routing, Relay UI, and live-call runner |
-| 🍎 macOS | 🚧 Partial | Keychain, ffmpeg Opus/PCM adapter, POSIX native-addon loader, and shared core |
+| 🍎 macOS | 🧪 Awaiting real-Mac acceptance | BlackHole/Core Audio route, sender rollback, production runner, Keychain, and libdave build |
 | 🐧 Ubuntu | ⏳ Planned | Development and real-device validation will begin after GPT Live (Voice in Work/Codex) officially supports Ubuntu |
 
-The macOS components and automated tests are implemented, but the Core Audio live-call runner and real-Mac end-to-end acceptance are not complete. This release therefore does not claim full Windows and macOS support.
+The macOS live-call path is implemented, but real-Mac end-to-end acceptance is not complete. This release does not claim macOS support until the acceptance matrix passes. See the [macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md).
 
 The Discord/DAVE/Opus foundation is technically portable to Ubuntu, but GPT Live (Voice in Work/Codex) is not currently offered as an official Ubuntu/Linux desktop capability. Discodex therefore does not support Ubuntu yet. Linux audio routing and real E2E validation are planned after [official Ubuntu support becomes available](https://help.openai.com/en/articles/20001275/). Confirmed technical gaps are consolidated in the [Ubuntu section of the technical and operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#ubuntu-linux-support).
 
@@ -142,23 +142,63 @@ When the Discord call is finished and you want to use Codex Voice on the PC agai
 
 Relay refuses to close or stop control while a runner or lock is active. Use `/disconnect` first.
 
-## 🍎 macOS public testing
+## 🍎 macOS acceptance testing
 
-macOS 13+ on Apple Silicon and Intel is currently a **public test target**. The shared core, Keychain credential provider, ffmpeg Opus/PCM adapter, and POSIX native-addon loader exist, but the Core Audio live-call runner and real-Mac E2E acceptance are incomplete. It is not yet equivalent to the Windows release.
+The macOS 13+ implementation for Apple Silicon and Intel is complete and is now **awaiting final acceptance on a real Mac**. It includes:
 
-Start with non-connecting checks:
+- A dedicated Core Audio host that selects BlackHole 2ch without changing the macOS system defaults
+- Exact-task WebRTC sender replacement with physical-microphone rollback on `/disconnect` or failure
+- A macOS production runner, Login Keychain token provider, and official-libdave builds for Apple Silicon and Intel
+- An E2E evidence verifier for DAVE, bidirectional audio, two round trips, ratchet/epoch activity, and log sanitation
+
+The Windows-only VB-CABLE path is not used on macOS. The Mac path is **BlackHole 2ch + Core Audio**. Windows automation cannot replace real-Mac acceptance, so macOS will not be marked equivalent to the Windows release until the gates below pass.
+
+### Requirements
+
+- macOS 13 or later and Node.js 26 or later
+- BlackHole 2ch at 48,000 Hz/stereo, ffmpeg, Xcode Command Line Tools, and CMake
+- Microphone permission for Codex Desktop
+- The Discord bot token stored in Login Keychain
+- `runtime/meetron-macos-live.json`, copied from `config/meetron-macos-live.example.json`, containing only the approved Discord IDs
+
+### First build and automated checks
 
 ```zsh
 git clone https://github.com/omusubiman5/discodex.git
 cd discodex
 npm ci
+zsh scripts/build-libdave-addon-macos.sh
+npm run build:coreaudio:macos
 npm test
 npm run test:acceptance
-npm run preflight:discord
-npm run dry-run:discord
 ```
 
-Requirements are Node.js 26+, ffmpeg, Xcode Command Line Tools, CMake, and Login Keychain. Build the official libdave addon for the Mac's real architecture (arm64 or x64) and current Node ABI by following the [DAVE integration section of the technical and operations runbook](docs/DISCORD_VOICE_RUNBOOK.md#dave-integration).
+### Start Codex and the bridge
+
+Launch Codex with loopback-only CDP, open the exact task under test, and start Voice Talk.
+
+```zsh
+open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
+mkdir -p outputs
+zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
+```
+
+Run `/status` and then `/connect` in the allowlisted Discord text channel. After testing, run `/disconnect`, press `Ctrl-C` in the terminal, and verify the evidence:
+
+```zsh
+node scripts/verify-macos-e2e-evidence.mjs outputs/macos-live-e2e.jsonl
+```
+
+### Real-Mac acceptance gates
+
+- External Discord speech reaches only the selected Codex task
+- The causally corresponding Codex voice response returns to Discord
+- At least two round trips, barge-in, and voice-channel rejoin succeed
+- DAVE remains enabled, with no leakage, physical-microphone contamination, feedback, or clipping
+- `/disconnect` leaves Codex Voice alive and restores the physical microphone, runner, and lock
+- The E2E evidence verifier passes without tokens, Discord IDs, transcript text, or audio data in logs
+
+See the [macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md) for Keychain setup, configuration, recovery, and the full acceptance matrix.
 
 When reporting results, include only:
 

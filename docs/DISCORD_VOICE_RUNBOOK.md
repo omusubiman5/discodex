@@ -38,7 +38,7 @@ Current GPT Live / Codex Voice task
 | Platform | Current status / 現状 | Requirements / 必要条件 |
 | --- | --- | --- |
 | Windows 11 x64 | Supported and live-E2E verified / 対応・実通話確認済み | Node.js 26+, ffmpeg, VB-CABLE, PowerShell, CMake, MSVC Build Tools, Windows SDK |
-| macOS 13+ arm64/x64 | Partial; real Core Audio E2E pending / 部分対応・実機E2E待ち | Node.js 26+, ffmpeg, Keychain, Xcode Command Line Tools, CMake |
+| macOS 13+ arm64/x64 | Implementation candidate; real-Mac E2E pending / 実装済み・実機E2E受入待ち | Node.js 26+, BlackHole 2ch, ffmpeg, Keychain, Xcode Command Line Tools, CMake |
 | Ubuntu/Linux | Unsupported until official GPT Live support / GPT Live公式対応待ち | See [Ubuntu gate](#ubuntu-linux-support) |
 
 Official `discord/libdave` is mandatory. Plaintext fallback, custom cryptography, unpinned builds, and alternate AI sessions are prohibited.
@@ -254,6 +254,8 @@ Evidence ID: `native-addon-loader-pass`
 Build the pinned official library and addon for the real architecture (`arm64-osx` or `x64-osx`) and current Node ABI. Set `CODEX_BRIDGE_LIBDAVE_ADDON_PATH` only in the bridge process. A Windows artifact or unit test does not prove macOS E2E.
 
 実architecture（`arm64-osx`／`x64-osx`）と現在のNode ABI向けに固定公式library/addonをbuildし、`CODEX_BRIDGE_LIBDAVE_ADDON_PATH`はbridge processだけへ設定します。Windows artifactやunit testをmacOS E2Eの代替にしません。
+
+The reproducible build, Core Audio route, launch, rollback, and acceptance procedure is maintained in [MACOS_E2E_RUNBOOK.md](MACOS_E2E_RUNBOOK.md). macOS remains unaccepted until that real-device matrix passes.
 
 <a id="voice-4006"></a>
 
