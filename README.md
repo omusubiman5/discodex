@@ -103,6 +103,22 @@ Botには上記の最小権限だけを許可します。guild、voice/text chan
 
 WindowsのPC側操作アプリが **Discodex Relay** です。Relayは常駐serviceではなく、必要なときだけ利用者が起動します。
 
+### VB-CABLEの入手先とライセンス
+
+Windows版はVB-Audio Softwareの通常版 **VB-CABLE** を外部audio driverとして使用します。VB-CABLEはMITなどのopen-source licenseではなく、公式区分は **Donationware Simple** です。Discodexのrepository、release、installerにはVB-CABLE本体を同梱しません。利用者が公式配布元から直接入手し、VB-Audioの条件に同意して導入してください。
+
+| 項目 | 内容 |
+| --- | --- |
+| 公式download・導入手順 | [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) |
+| ライセンス説明 | [VB-Audio Licensing](https://vb-audio.com/Services/licensing.htm) |
+| 通常版Windowsライセンス購入 | [VB-CABLE Windows WebShop](https://shop.vb-audio.com/en/win-apps/11-vb-cable.html) |
+| 課金形態 | 月額subscriptionではなく、任意額を選ぶdonationware方式。購入時点の価格と条件は公式WebShopを確認してください。 |
+| 個人の試用 | 全機能を試用でき、有用ならlicense支払いを求める方式です。MITのようなopen-source licenseではありません。 |
+| 業務・法人・団体・server利用 | 公式条件では有償licenseが必要です。利用者数またはPC数に合わせて購入し、大量導入はvolume licensingを確認してください。 |
+| 再配布 | Discodexは再配布しません。VB-CABLEを他製品へ同梱・再配布する場合は、VB-Audioのdistribution条件が別途適用されます。 |
+
+このprojectに必要なのは通常版VB-CABLE 1本だけです。有償download型の **VB-CABLE A+B / C+D** は不要であり、通常版とは購入・再配布条件が異なります。いわゆる「買い切りか」という点では継続課金型ではありませんが、licenseの単位、PC変更、再取得などは購入時点の公式条件を優先してください。
+
 1. Node.js 26+、ffmpeg、VB-CABLE、Codex Desktopを用意します。
 2. リポジトリのrootでRelayアプリを生成します。
 

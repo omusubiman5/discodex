@@ -103,6 +103,22 @@ Configuration, credentials, official libdave, and diagnosis are consolidated in 
 
 **Discodex Relay** is the PC-side control app. It is not an always-on service; the user starts it only when needed.
 
+### Where to get VB-CABLE and how it is licensed
+
+The Windows path uses VB-Audio Software's standard **VB-CABLE** as an external audio driver. VB-CABLE is not distributed under MIT or another open-source license; its official classification is **Donationware Simple**. Discodex does not bundle VB-CABLE in this repository, releases, or installers. Each user must obtain it directly from VB-Audio and accept VB-Audio's terms.
+
+| Item | Details |
+| --- | --- |
+| Official download and installation | [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) |
+| Licensing policy | [VB-Audio Licensing](https://vb-audio.com/Services/licensing.htm) |
+| Standard Windows license purchase | [VB-CABLE Windows WebShop](https://shop.vb-audio.com/en/win-apps/11-vb-cable.html) |
+| Payment model | Donationware with a selectable contribution, not a monthly subscription. Check the WebShop for the current price and terms. |
+| Individual evaluation | All functions can be evaluated, with license payment expected when the software is useful. This is not an open-source license such as MIT. |
+| Professional, business, organization, or server use | VB-Audio requires a paid license. Purchase for the applicable number of users or PCs; consult volume licensing for larger deployments. |
+| Redistribution | Discodex does not redistribute it. Bundling or redistributing VB-CABLE with another product is subject to VB-Audio's separate distribution conditions. |
+
+Discodex needs only one standard VB-CABLE. The paid-download **VB-CABLE A+B / C+D** packages are not required and have different purchase and redistribution rules. In practical terms this is not a recurring subscription, but the official terms in effect at purchase govern license scope, PC changes, and access to replacement downloads.
+
 1. Install Node.js 26+, ffmpeg, VB-CABLE, and Codex Desktop.
 2. Build the Relay entry point from the repository root:
 
