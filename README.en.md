@@ -62,7 +62,7 @@ See [macOS acceptance testing](#-macos-acceptance-testing) and the [macOS E2E Ru
 
 On both Windows and macOS, **Discodex Relay prevents idle system sleep while its window is open**. The display may still turn off normally. Closing Relay releases the assertion and restores the operating system's normal power policy.
 
-Relay cannot override closing a laptop lid, manually requested sleep or hibernation, shutdown, battery depletion, or network loss. For remote availability, connect AC power, leave the lid open, and use a stable network connection.
+Mini PCs and desktops have no lid-related restriction. A laptop can also operate closed when the operating system and hardware are configured for it—for example, “When I close the lid: Do nothing” on Windows or a supported macOS clamshell setup. Relay does not silently change that global policy; it owns only the idle-sleep assertion. Manual sleep or hibernation, shutdown, battery depletion, and network loss remain separate conditions, so remote operation still requires power and network availability.
 
 ### 📱 Real-device smartphone checks
 
