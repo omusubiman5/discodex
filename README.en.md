@@ -49,24 +49,12 @@ On the first run only, create the shortcut by running `npm run build:relay:windo
 
 ### 🍎 macOS
 
-The macOS build does not yet provide a Relay shortcut or `.app`. **Start it from Terminal.**
+1. Open the target task in Codex Desktop.
+2. In Finder, double-click **`dist/Discodex Relay.app`** inside the repository. This is the macOS launch point.
+3. Press `Prepare Codex` or `Start Relay` once and wait for `RELAY READY`. Relay manages the bounded Codex restart, loopback-only CDP, Core Audio route, and command control.
+4. Run `/status` and then `/connect` in the allowlisted Discord text channel. `/connect` starts Voice Talk in the selected task.
 
-1. At the repository root, launch Codex Desktop with loopback-only CDP:
-
-   ```zsh
-   open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
-   ```
-
-2. In the launched Codex Desktop, open the exact task under test and start Voice Talk.
-3. In another Terminal, replace `EXACT_CODEX_TASK_ID` with the UUID of the currently open task and start the macOS runner:
-
-   ```zsh
-   cd /path/to/discodex
-   mkdir -p outputs
-   zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
-   ```
-
-4. After the runner starts, run `/status` and then `/connect` in the allowlisted Discord text channel.
+On the first run only, create the app by running `npm run build:relay:macos` in Terminal at the repository root. Normal launches require neither a Terminal command nor repeated task-ID entry.
 
 See [macOS acceptance testing](#-macos-acceptance-testing) and the [macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md) for first-time builds, Keychain, BlackHole, configuration, shutdown, and evidence verification.
 
@@ -213,6 +201,7 @@ The Windows-only VB-CABLE path is not used on macOS. The Mac path is **BlackHole
 - Microphone permission for Codex Desktop
 - The Discord bot token stored in Login Keychain
 - `runtime/meetron-macos-live.json`, copied from `config/meetron-macos-live.example.json`, containing only the approved Discord IDs
+- The shared `runtime/discodex-relay.thread-id`, containing the target Codex task UUID on one line; it is not re-entered at launch
 
 ### First build and automated checks
 
@@ -222,24 +211,23 @@ cd discodex
 npm ci
 zsh scripts/build-libdave-addon-macos.sh
 npm run build:coreaudio:macos
+npm run build:relay:macos
 npm test
 npm run test:acceptance
 ```
 
 ### Start Codex and the bridge
 
-Launch Codex with loopback-only CDP, open the exact task under test, and start Voice Talk.
+Use the GUI just like on Windows. Open the target task in Codex Desktop, then double-click this item in Finder:
 
 ```zsh
-open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
-mkdir -p outputs
-zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
+dist/Discodex Relay.app
 ```
 
-Run `/status` and then `/connect` in the allowlisted Discord text channel. After testing, run `/disconnect`, press `Ctrl-C` in the terminal, and verify the evidence:
+Press `Prepare Codex` or `Start Relay`, then run `/status` and `/connect` in the allowlisted Discord text channel. After testing, run `/disconnect` and close Relay. Terminal is needed only when verifying the latest automatically saved evidence:
 
 ```zsh
-node scripts/verify-macos-e2e-evidence.mjs outputs/macos-live-e2e.jsonl
+node scripts/verify-macos-e2e-evidence.mjs "$(ls -t outputs/discord-production-control-macos-*.jsonl | head -1)"
 ```
 
 ### Real-Mac acceptance gates

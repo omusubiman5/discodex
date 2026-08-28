@@ -49,24 +49,12 @@ Ubuntu向けDiscord/DAVE/Opus基盤は技術的に移植可能ですが、現在
 
 ### 🍎 macOS
 
-macOS版にRelay shortcutや `.app` はまだありません。**Terminalから起動します。**
+1. Codex Desktopで対象タスクを開きます。
+2. Finderでrepository内の **`dist/Discodex Relay.app`** をダブルクリックします。これがmacOS版の起動入口です。
+3. Relayの `Prepare Codex` または `Start Relay` を1回押し、`RELAY READY` を確認します。必要なCodex再起動、loopback限定CDP、Core Audio経路、control起動はRelayが管理します。
+4. Discordの許可済みtext channelで `/status`、続けて `/connect` を実行します。Voice Talkの開始も `/connect` が対象タスクへ行います。
 
-1. repository rootのTerminalでCodex Desktopをloopback限定CDP付きで起動します。
-
-   ```zsh
-   open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
-   ```
-
-2. 起動したCodex Desktopで検証対象のタスクを開き、Voice Talkを開始します。
-3. 別のTerminalで、`EXACT_CODEX_TASK_ID` を現在開いているタスクのUUIDへ置き換えてmacOS runnerを起動します。
-
-   ```zsh
-   cd /path/to/discodex
-   mkdir -p outputs
-   zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
-   ```
-
-4. runnerが起動したら、Discordの許可済みtext channelで `/status`、続けて `/connect` を実行します。
+初回だけ、appを作るためrepository rootのTerminalで `npm run build:relay:macos` を実行します。起動のたびにTerminal commandやtask IDを入力する必要はありません。
 
 初回構築、Keychain、BlackHole、設定ファイル、終了・証跡検査は[macOSテスター向け](#-macosテスター向け)と[macOS E2E Runbook](docs/MACOS_E2E_RUNBOOK.md)を参照してください。
 
@@ -215,6 +203,7 @@ Windows用のVB-CABLEはmacOSでは使いません。macOS経路は **BlackHole 
 - Codex Desktopのマイク権限
 - Login Keychainに保存したDiscord bot token
 - `config/meetron-macos-live.example.json` をコピーした `runtime/meetron-macos-live.json`（許可するDiscord IDだけを設定）
+- Windows Relayと共通の `runtime/discodex-relay.thread-id`（対象Codex task UUIDを1行で保存。起動時の手入力は不要）
 
 ### 初回構築と自動テスト
 
@@ -224,24 +213,23 @@ cd discodex
 npm ci
 zsh scripts/build-libdave-addon-macos.sh
 npm run build:coreaudio:macos
+npm run build:relay:macos
 npm test
 npm run test:acceptance
 ```
 
 ### Codexとブリッジの起動
 
-Codexをloopback限定のCDPで起動し、検証対象のタスクを開いてVoice Talkを開始します。
+Windows版と同じくGUIから起動します。Codex Desktopで対象タスクを開き、Finderで次をダブルクリックします。
 
 ```zsh
-open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
-mkdir -p outputs
-zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
+dist/Discodex Relay.app
 ```
 
-許可済みDiscord text channelで `/status`、`/connect` の順に実行します。検証後は `/disconnect`、terminalで `Ctrl-C` の順に終了し、証跡を検査します。
+Relayの `Prepare Codex` または `Start Relay` を押し、許可済みDiscord text channelで `/status`、`/connect` の順に実行します。検証後は `/disconnect` を実行し、Relayを終了します。最新の自動保存証跡を検査する場合だけTerminalを使います。
 
 ```zsh
-node scripts/verify-macos-e2e-evidence.mjs outputs/macos-live-e2e.jsonl
+node scripts/verify-macos-e2e-evidence.mjs "$(ls -t outputs/discord-production-control-macos-*.jsonl | head -1)"
 ```
 
 ### 実機合格条件

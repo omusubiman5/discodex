@@ -33,28 +33,20 @@ zsh scripts/build-libdave-addon-macos.sh
 npm ci
 npm test
 npm run build:coreaudio:macos
+npm run build:relay:macos
 ```
 
 The libdave script checks out only commit `52cd56dc550f447fb354b3a06c9e2d2e2a4309c6`, initializes its pinned vcpkg submodule, builds the official C API and tests, builds the Node addon for the current architecture/ABI, and loads its lifecycle probe. Do not continue after any failed gate.
 
-## Prepare Codex Desktop
+## Prepare Codex Desktop and start Relay
 
-Codex Desktop must expose CDP on loopback only. Close Codex normally, then launch the installed app with:
-
-```zsh
-open -na "Codex" --args --remote-debugging-address=127.0.0.1 --remote-debugging-port=9224
-```
-
-Open the exact task and start its Voice Talk call. Confirm the physical microphone works before starting Discodex.
-
-## Start control
-
-Run in a terminal that will remain open:
+Store the exact task UUID once in `runtime/discodex-relay.thread-id`, matching the Windows Relay configuration. Open the target task in Codex Desktop, then double-click:
 
 ```zsh
-mkdir -p outputs
-zsh scripts/run-discodex-macos.sh EXACT_CODEX_TASK_ID 2>&1 | tee outputs/macos-live-e2e.jsonl
+dist/Discodex Relay.app
 ```
+
+Press `Prepare Codex` or `Start Relay` and wait for `RELAY READY`. Relay owns the bounded Codex restart, loopback-only CDP launch, command-control process, and sanitized evidence files. Normal operation requires no Terminal command or task-ID argument.
 
 In the allowlisted Discord text channel, run `/status`, then `/connect`. The control must not report `Connected.` until Voice Ready, UDP discovery, DAVE Execute Transition, Core Audio host startup, and exact-task attachment have all passed.
 
@@ -71,12 +63,12 @@ Perform all items; connection alone is not acceptance.
 7. Run `/disconnect`; confirm Codex Voice remains alive and its physical microphone works again.
 8. Confirm the runner exits, `runtime/live-call.lock` disappears, and no RTP is sent afterward.
 
-After `/disconnect` has fully restored the route, stop the foreground command-control process with `Ctrl-C` so `tee` closes the evidence file.
+After `/disconnect` has fully restored the route, close Discodex Relay. It stops command control only after confirming that no voice runner or lock remains.
 
 Then run:
 
 ```zsh
-node scripts/verify-macos-e2e-evidence.mjs outputs/macos-live-e2e.jsonl
+node scripts/verify-macos-e2e-evidence.mjs "$(ls -t outputs/discord-production-control-macos-*.jsonl | head -1)"
 ```
 
 The verifier requires DAVE decrypt, PCM generation, Codex input/output, Discord response send, ratchet/epoch activity, two causal round trips, zero Codex input failures, and sanitation markers. Audible quality, contamination, barge-in, and route restoration remain human-observed gates and must be recorded separately.

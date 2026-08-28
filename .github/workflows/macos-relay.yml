@@ -1,0 +1,38 @@
+name: macOS Relay
+
+on:
+  push:
+    paths:
+      - ".github/workflows/macos-relay.yml"
+      - "native/macos/**"
+      - "scripts/build-discodex-relay-macos.sh"
+      - "scripts/manage-discodex-relay-macos.mjs"
+      - "scripts/run-discodex-macos.sh"
+      - "package.json"
+      - "tests/macos-relay-app.test.mjs"
+  pull_request:
+    paths:
+      - ".github/workflows/macos-relay.yml"
+      - "native/macos/**"
+      - "scripts/build-discodex-relay-macos.sh"
+      - "scripts/manage-discodex-relay-macos.mjs"
+      - "scripts/run-discodex-macos.sh"
+      - "package.json"
+      - "tests/macos-relay-app.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  build-relay:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - run: node --test tests/macos-relay-app.test.mjs tests/macos-coreaudio-source.test.mjs tests/macos-live-runtime.test.mjs
+      - run: npm run build:relay:macos
+      - run: test -x "dist/Discodex Relay.app/Contents/MacOS/Discodex Relay"
+      - run: codesign --verify --deep --strict "dist/Discodex Relay.app"
