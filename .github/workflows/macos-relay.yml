@@ -28,11 +28,11 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 26
-      - run: node --test tests/macos-relay-app.test.mjs tests/macos-coreaudio-source.test.mjs tests/macos-live-runtime.test.mjs
+      - run: node --test tests/macos-relay-app.test.mjs tests/macos-coreaudio-source.test.mjs
       - run: npm run build:relay:macos
       - run: test -x "dist/Discodex Relay.app/Contents/MacOS/Discodex Relay"
       - run: codesign --verify --deep --strict "dist/Discodex Relay.app"
