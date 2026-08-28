@@ -105,19 +105,22 @@ WindowsのPC側操作アプリが **Discodex Relay** です。Relayは常駐serv
 
 ### VB-CABLEの入手先とライセンス
 
-Windows版はVB-Audio Softwareの通常版 **VB-CABLE** を外部audio driverとして使用します。VB-CABLEはMITなどのopen-source licenseではなく、公式区分は **Donationware Simple** です。Discodexのrepository、release、installerにはVB-CABLE本体を同梱しません。利用者が公式配布元から直接入手し、VB-Audioの条件に同意して導入してください。
+**この項目はWindows版Discodexだけが対象です。macOS版はBlackHole 2chを使用するため、VB-CABLEは不要です。** Windows版はVB-Audio Softwareの通常版 **VB-CABLE for Windows** を外部audio driverとして使用します。VB-CABLEはMITなどのopen-source licenseではなく、公式区分は **Donationware Simple** です。Discodexのrepository、release、installerにはVB-CABLE本体を同梱しません。利用者が公式配布元から直接入手し、VB-Audioの条件に同意して導入してください。
 
 | 項目 | 内容 |
 | --- | --- |
 | 公式download・導入手順 | [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) |
 | ライセンス説明 | [VB-Audio Licensing](https://vb-audio.com/Services/licensing.htm) |
 | 通常版Windowsライセンス購入 | [VB-CABLE Windows WebShop](https://shop.vb-audio.com/en/win-apps/11-vb-cable.html) |
-| 課金形態 | 月額subscriptionではなく、任意額を選ぶdonationware方式。購入時点の価格と条件は公式WebShopを確認してください。 |
+| 対象OS | **Windows版のみ**。macOS版Discodexの要件ではありません。 |
+| 2026年8月28日時点の表示価格 | 通常版VB-CABLE for Windowsは **1 licenseあたりUS$5.00**。公式WebShopのUSD表示価格です。 |
+| volume価格（同日時点） | 10 licenses: US$4.17/本、100: US$3.61/本、1,000: US$2.92/本、10,000: US$2.50/本。 |
+| 課金形態 | 月額subscriptionではなく、任意額を選ぶdonationware方式。継続課金はありません。 |
 | 個人の試用 | 全機能を試用でき、有用ならlicense支払いを求める方式です。MITのようなopen-source licenseではありません。 |
 | 業務・法人・団体・server利用 | 公式条件では有償licenseが必要です。利用者数またはPC数に合わせて購入し、大量導入はvolume licensingを確認してください。 |
 | 再配布 | Discodexは再配布しません。VB-CABLEを他製品へ同梱・再配布する場合は、VB-Audioのdistribution条件が別途適用されます。 |
 
-このprojectに必要なのは通常版VB-CABLE 1本だけです。有償download型の **VB-CABLE A+B / C+D** は不要であり、通常版とは購入・再配布条件が異なります。いわゆる「買い切りか」という点では継続課金型ではありませんが、licenseの単位、PC変更、再取得などは購入時点の公式条件を優先してください。
+個人のWindows PC 1台でDiscodexを使う場合、このprojectに必要なのは通常版VB-CABLE 1 licenseだけです。有償download型の **VB-CABLE A+B / C+D** は不要であり、通常版とは購入・再配布条件が異なります。価格、税、為替、licenseの単位、PC変更、再取得条件は変更される可能性があるため、決済時に公式WebShopの表示を必ず確認してください。
 
 1. Node.js 26+、ffmpeg、VB-CABLE、Codex Desktopを用意します。
 2. リポジトリのrootでRelayアプリを生成します。

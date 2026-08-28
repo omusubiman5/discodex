@@ -105,19 +105,22 @@ Configuration, credentials, official libdave, and diagnosis are consolidated in 
 
 ### Where to get VB-CABLE and how it is licensed
 
-The Windows path uses VB-Audio Software's standard **VB-CABLE** as an external audio driver. VB-CABLE is not distributed under MIT or another open-source license; its official classification is **Donationware Simple**. Discodex does not bundle VB-CABLE in this repository, releases, or installers. Each user must obtain it directly from VB-Audio and accept VB-Audio's terms.
+**This section applies only to Discodex on Windows. The macOS path uses BlackHole 2ch and does not require VB-CABLE.** Windows uses VB-Audio Software's standard **VB-CABLE for Windows** as an external audio driver. VB-CABLE is not distributed under MIT or another open-source license; its official classification is **Donationware Simple**. Discodex does not bundle VB-CABLE in this repository, releases, or installers. Each user must obtain it directly from VB-Audio and accept VB-Audio's terms.
 
 | Item | Details |
 | --- | --- |
 | Official download and installation | [VB-Audio Virtual Cable](https://vb-audio.com/Cable/) |
 | Licensing policy | [VB-Audio Licensing](https://vb-audio.com/Services/licensing.htm) |
 | Standard Windows license purchase | [VB-CABLE Windows WebShop](https://shop.vb-audio.com/en/win-apps/11-vb-cable.html) |
-| Payment model | Donationware with a selectable contribution, not a monthly subscription. Check the WebShop for the current price and terms. |
+| OS scope | **Windows only**. VB-CABLE is not a requirement for Discodex on macOS. |
+| Displayed price on August 28, 2026 | **US$5.00 per license** for standard VB-CABLE for Windows, as displayed by the official WebShop in USD. |
+| Volume prices on that date | 10 licenses: US$4.17 each; 100: US$3.61; 1,000: US$2.92; 10,000: US$2.50. |
+| Payment model | Donationware with a selectable contribution, not a monthly subscription. There is no recurring charge. |
 | Individual evaluation | All functions can be evaluated, with license payment expected when the software is useful. This is not an open-source license such as MIT. |
 | Professional, business, organization, or server use | VB-Audio requires a paid license. Purchase for the applicable number of users or PCs; consult volume licensing for larger deployments. |
 | Redistribution | Discodex does not redistribute it. Bundling or redistributing VB-CABLE with another product is subject to VB-Audio's separate distribution conditions. |
 
-Discodex needs only one standard VB-CABLE. The paid-download **VB-CABLE A+B / C+D** packages are not required and have different purchase and redistribution rules. In practical terms this is not a recurring subscription, but the official terms in effect at purchase govern license scope, PC changes, and access to replacement downloads.
+One standard VB-CABLE license is sufficient for Discodex on one personal Windows PC. The paid-download **VB-CABLE A+B / C+D** packages are not required and have different purchase and redistribution rules. Prices, tax, exchange rates, license scope, PC changes, and replacement-download terms may change; always confirm the official WebShop at checkout.
 
 1. Install Node.js 26+, ffmpeg, VB-CABLE, and Codex Desktop.
 2. Build the Relay entry point from the repository root:
