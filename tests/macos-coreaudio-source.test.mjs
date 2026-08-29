@@ -19,4 +19,9 @@ test("macOS libdave build is pinned and runs official C API plus Node lifecycle 
   assert.match(source, /load-probe\.cjs/);
   assert.match(source, /arm64-osx/);
   assert.match(source, /x64-osx/);
+  assert.match(source, /pkg-config is required before building libdave/);
+  assert.match(source, /brew install pkg-config/);
+  assert.match(source, /GNU make is required before building libdave/);
+  assert.match(source, /brew install make/);
+  assert.match(source, /make --version/);
 });
