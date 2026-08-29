@@ -152,6 +152,9 @@ function New-RelayFont {
 $ghibliBrown = [Drawing.Color]::FromArgb(0x22, 0x18, 0x15)
 $ghibliBlue = [Drawing.Color]::FromArgb(0x10, 0x9c, 0xeb)
 $buttonBorderBlue = [Drawing.Color]::FromArgb(0x00, 0x8c, 0xc1)
+$buttonPrimaryBlue = [Drawing.Color]::FromArgb(0x00, 0x78, 0xb3)
+$buttonHoverBlue = [Drawing.Color]::FromArgb(0x00, 0x89, 0xcc)
+$buttonPressedBlue = [Drawing.Color]::FromArgb(0x00, 0x5f, 0x8f)
 $orangeAccent = [Drawing.Color]::FromArgb(0xf7, 0x9b, 0x30)
 $textPrimary = [Drawing.Color]::FromArgb(0x37, 0x3a, 0x3c)
 $textLight = [Drawing.Color]::FromArgb(0xfa, 0xfa, 0xfa)
@@ -159,6 +162,8 @@ $textMuted = [Drawing.Color]::FromArgb(0x88, 0x88, 0x88)
 $labelGray = [Drawing.Color]::FromArgb(0x77, 0x77, 0x77)
 $borderColor = [Drawing.Color]::FromArgb(0xcc, 0xcc, 0xcc)
 $footerBackground = [Drawing.Color]::FromArgb(0xf4, 0xf4, 0xf4)
+$disabledButtonBackground = [Drawing.Color]::FromArgb(0xe6, 0xe6, 0xe6)
+$disabledButtonText = [Drawing.Color]::FromArgb(0x83, 0x83, 0x83)
 
 function Set-RoundedRegion {
   param([Windows.Forms.Control]$Control, [int]$Radius)
@@ -180,11 +185,13 @@ function Set-RoundedRegion {
 
 function Set-PrimaryButtonStyle {
   param([Windows.Forms.Button]$Button)
-  $Button.BackColor = $ghibliBrown
+  $Button.BackColor = $buttonPrimaryBlue
   $Button.ForeColor = $textLight
   $Button.FlatStyle = [Windows.Forms.FlatStyle]::Flat
   $Button.FlatAppearance.BorderColor = $buttonBorderBlue
   $Button.FlatAppearance.BorderSize = 1
+  $Button.FlatAppearance.MouseOverBackColor = $buttonHoverBlue
+  $Button.FlatAppearance.MouseDownBackColor = $buttonPressedBlue
   $Button.Font = New-RelayFont 10.5
   $Button.UseVisualStyleBackColor = $false
   Set-RoundedRegion $Button 7
@@ -200,6 +207,34 @@ function Set-SecondaryButtonStyle {
   $Button.Font = New-RelayFont 10.5
   $Button.UseVisualStyleBackColor = $false
   Set-RoundedRegion $Button 4
+}
+
+function Set-ButtonVisualState {
+  param([Windows.Forms.Button]$Button, [bool]$Primary)
+  if (-not $Button.Enabled) {
+    $Button.BackColor = $disabledButtonBackground
+    $Button.ForeColor = $disabledButtonText
+    $Button.FlatAppearance.BorderColor = $borderColor
+    return
+  }
+  if ($Primary) {
+    $Button.BackColor = $buttonPrimaryBlue
+    $Button.ForeColor = $textLight
+    $Button.FlatAppearance.BorderColor = $buttonBorderBlue
+    return
+  }
+  $Button.BackColor = [Drawing.Color]::White
+  $Button.ForeColor = $textPrimary
+  $Button.FlatAppearance.BorderColor = $borderColor
+}
+
+function Update-RelayButtonVisualStates {
+  Set-ButtonVisualState $startButton $true
+  Set-ButtonVisualState $shareStartButton $true
+  Set-ButtonVisualState $applyButton $true
+  Set-ButtonVisualState $stopButton $false
+  Set-ButtonVisualState $refreshButton $false
+  Set-ButtonVisualState $shareStopButton $false
 }
 
 function New-RelayLabel {
@@ -274,12 +309,14 @@ function Set-RelayButtonState {
     $stopButton.Enabled = $false
     $shareStartButton.Enabled = $false
     $shareStopButton.Enabled = $false
+    Update-RelayButtonVisualStates
     return
   }
   $startButton.Text = if ($script:lastSnapshot.routePrepared) { 'Start Relay' } else { 'Prepare Codex' }
   $startButton.Enabled = $script:lastSnapshot.controlCount -le 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent -and ((-not $script:lastSnapshot.routePrepared) -or $script:lastSnapshot.controlCount -eq 0)
   $stopButton.Enabled = $script:lastSnapshot.controlCount -eq 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent
   $shareStartButton.Enabled = $script:lastSnapshot.runnerCount -eq 1 -and $script:lastSnapshot.lockPresent
+  Update-RelayButtonVisualStates
 }
 
 $script:powerAssertionActive = $false
