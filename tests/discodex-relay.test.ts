@@ -142,20 +142,20 @@ test("gain command persists approved values and rejects unsafe values", () => {
       discordVoiceChannelId: TEST_DISCORD_ID_10,
     }));
     const env = { ...process.env, CODEX_BRIDGE_MEETRON_RUNTIME_CONFIG: runtimePath, CODEX_BRIDGE_GAIN_STORE_PATH: storePath };
-    const initial = spawnSync("node.exe", [resolve("scripts/manage-discord-output-gain.mjs"), "get"], { encoding: "utf8", env });
+    const initial = spawnSync(process.execPath, [resolve("scripts/manage-discord-output-gain.mjs"), "get"], { encoding: "utf8", env });
     assert.equal(initial.status, 0, initial.stderr);
     assert.equal(JSON.parse(initial.stdout).gainPercent, 50);
-    const set = spawnSync("node.exe", [resolve("scripts/manage-discord-output-gain.mjs"), "set", "0.40"], { encoding: "utf8", env });
+    const set = spawnSync(process.execPath, [resolve("scripts/manage-discord-output-gain.mjs"), "set", "0.40"], { encoding: "utf8", env });
     assert.equal(set.status, 0, set.stderr);
     assert.equal(JSON.parse(set.stdout).gainPercent, 40);
-    const unsafe = spawnSync("node.exe", [resolve("scripts/manage-discord-output-gain.mjs"), "set", "1.01"], { encoding: "utf8", env });
+    const unsafe = spawnSync(process.execPath, [resolve("scripts/manage-discord-output-gain.mjs"), "set", "1.01"], { encoding: "utf8", env });
     assert.notEqual(unsafe.status, 0);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
 });
 
-test("Relay PowerShell boundaries parse without errors", () => {
+test("Relay PowerShell boundaries parse without errors", { skip: process.platform !== "win32" }, () => {
   for (const script of [
     sourcePath,
     buildPath,
@@ -170,7 +170,7 @@ test("Relay PowerShell boundaries parse without errors", () => {
   }
 });
 
-test("Relay builds a fixed shortcut to signed Windows PowerShell and probe is read-only", () => {
+test("Relay builds a fixed shortcut to signed Windows PowerShell and probe is read-only", { skip: process.platform !== "win32" }, () => {
   const buildSource = readFileSync(buildPath, "utf8");
   assert.match(buildSource, /WScript\.Shell/);
   assert.match(buildSource, /WindowsPowerShell\\v1\.0\\powershell\.exe/);
