@@ -17,6 +17,15 @@ fi
 for command_name in git cmake clang node; do
   command -v "$command_name" >/dev/null || { print -u2 "$command_name is required."; exit 1; }
 done
+if ! command -v pkg-config >/dev/null; then
+  print -u2 "pkg-config is required before building libdave. Install it with: brew install pkg-config"
+  exit 1
+fi
+if ! command -v make >/dev/null || ! make --version 2>/dev/null | grep -q "GNU Make"; then
+  print -u2 "GNU make is required before building libdave. Install it with: brew install make"
+  print -u2 "Then run this script with GNU make first in PATH, for example: PATH=\"\$(brew --prefix make)/libexec/gnubin:\$PATH\" zsh scripts/build-libdave-addon-macos.sh"
+  exit 1
+fi
 
 if [[ ! -d "$dave_root/.git" ]]; then
   mkdir -p "${dave_root:h}"

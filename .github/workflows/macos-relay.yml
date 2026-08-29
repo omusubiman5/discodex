@@ -6,24 +6,28 @@ on:
       - ".github/workflows/macos-relay.yml"
       - "native/macos/**"
       - "scripts/build-discodex-relay-macos.sh"
+      - "scripts/build-libdave-addon-macos.sh"
       - "scripts/manage-discodex-relay-macos.mjs"
       - "scripts/run-discodex-macos.sh"
       - "package.json"
       - "package-lock.json"
       - "tests/credentials.test.ts"
       - "tests/discodex-relay.test.ts"
+      - "tests/macos-coreaudio-source.test.mjs"
       - "tests/macos-relay-app.test.mjs"
   pull_request:
     paths:
       - ".github/workflows/macos-relay.yml"
       - "native/macos/**"
       - "scripts/build-discodex-relay-macos.sh"
+      - "scripts/build-libdave-addon-macos.sh"
       - "scripts/manage-discodex-relay-macos.mjs"
       - "scripts/run-discodex-macos.sh"
       - "package.json"
       - "package-lock.json"
       - "tests/credentials.test.ts"
       - "tests/discodex-relay.test.ts"
+      - "tests/macos-coreaudio-source.test.mjs"
       - "tests/macos-relay-app.test.mjs"
 
 permissions:

@@ -205,7 +205,8 @@ Windows用のVB-CABLEはmacOSでは使いません。macOS経路は **BlackHole 
 ### 必要なもの
 
 - macOS 13以降、Node.js 26以降
-- BlackHole 2ch（48,000 Hz・2ch）、ffmpeg、Xcode Command Line Tools、CMake
+- BlackHole 2ch（48,000 Hz・2ch）、ffmpeg、Xcode Command Line Tools、CMake、`pkg-config`、GNU make
+- Homebrewでは `brew install cmake ffmpeg pkg-config make`。`make --version` がGNU Makeを示さない場合は、libdave build前に `export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"` を実行する
 - Codex Desktopのマイク権限
 - Login Keychainに保存したDiscord bot token
 - `config/meetron-macos-live.example.json` をコピーした `runtime/meetron-macos-live.json`（許可するDiscord IDだけを設定）

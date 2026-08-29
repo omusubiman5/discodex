@@ -15,7 +15,8 @@ The bridge never changes the global macOS input or output defaults. It selects o
 
 ## One-time Mac setup
 
-1. Use macOS 13 or later and install Node.js 26+, Xcode Command Line Tools, CMake, ffmpeg, and the official BlackHole 2ch driver.
+1. Use macOS 13 or later and install Node.js 26+, Xcode Command Line Tools, CMake, ffmpeg, `pkg-config`, GNU make, and the official BlackHole 2ch driver. With Homebrew: `brew install cmake ffmpeg pkg-config make`.
+   The build checks that `make --version` reports GNU Make. If it does not, select Homebrew GNU make before the build: `export PATH="$(brew --prefix make)/libexec/gnubin:$PATH"`.
 2. Confirm Audio MIDI Setup shows exactly one device named `BlackHole 2ch`, configured for 48,000 Hz and two channels.
 3. Keep the physical microphone as the macOS default input. The bridge selects BlackHole only for the exact Codex call.
 4. Grant Codex Desktop microphone permission. Do not grant the terminal broader audio permissions unless macOS requests them for the bridge host.
