@@ -76,7 +76,7 @@ test("scoped credential use disposes the lease when the consumer fails", async (
   assert.equal(tracked.disposed(), true);
 });
 
-test("Windows DPAPI provider stores ciphertext, reads a scoped lease, and deletes it", async () => {
+test("Windows DPAPI provider stores ciphertext, reads a scoped lease, and deletes it", { skip: process.platform !== "win32" }, async () => {
   const root = await mkdtemp(join(tmpdir(), "cdvb-dpapi-"));
   const provider = new WindowsDpapiCredentialProvider("unit-test", root);
   const synthetic = "synthetic-secret-never-log";
