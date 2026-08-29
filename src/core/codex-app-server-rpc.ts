@@ -65,15 +65,45 @@ const ACTIVE_VOICE_EXPRESSION = `(() => {
   });
 })()`;
 
-function startNativeVoiceExpression(threadId: string): string {
+function startNativeVoiceExpression(threadId: string, verifiedActiveTask: boolean): string {
   return `(async () => {
-    const activeThreadKey = document.querySelector('[data-above-composer-conversation-id]')
+    const legacyThreadKey = document.querySelector('[data-above-composer-conversation-id]')
       ?.getAttribute('data-above-composer-conversation-id')
       ?? document.querySelector('[data-app-action-sidebar-thread-id][data-app-action-sidebar-thread-active="true"]')
         ?.getAttribute('data-app-action-sidebar-thread-id')
       ?? document.querySelector('[data-app-action-sidebar-thread-id][aria-current="page"]')
         ?.getAttribute('data-app-action-sidebar-thread-id');
-    if (activeThreadKey !== ${JSON.stringify(threadId)}) return { ok: false, category: 'task-mismatch' };
+    const resolveMainSessionThreadKey = () => {
+      const main = document.querySelector('main');
+      if (!main) return undefined;
+      const queue = [];
+      const seen = new WeakSet();
+      for (const key of Object.getOwnPropertyNames(main)) {
+        if (key.startsWith('__reactFiber$') || key.startsWith('__reactProps$')) queue.push({ value: main[key], depth: 0 });
+      }
+      const ids = new Set();
+      let inspected = 0;
+      while (queue.length && inspected < 20000) {
+        const entry = queue.shift();
+        const value = entry.value;
+        inspected += 1;
+        if (!value || typeof value !== 'object' || entry.depth > 4 || seen.has(value)) continue;
+        seen.add(value);
+        if (Array.isArray(value.sessions) && typeof value.sessions[0]?.localConversationId === 'string') {
+          ids.add(value.sessions[0].localConversationId);
+        }
+        let descriptors;
+        try { descriptors = Object.getOwnPropertyDescriptors(value); } catch { continue; }
+        for (const descriptor of Object.values(descriptors)) {
+          if ('value' in descriptor) queue.push({ value: descriptor.value, depth: entry.depth + 1 });
+        }
+      }
+      return ids.size === 1 ? [...ids][0] : undefined;
+    };
+    const activeThreadKey = legacyThreadKey ?? resolveMainSessionThreadKey();
+    const domTaskMatched = activeThreadKey === ${JSON.stringify(threadId)};
+    const activeTaskFallback = activeThreadKey === undefined && ${JSON.stringify(verifiedActiveTask)};
+    if (!domTaskMatched && !activeTaskFallback) return { ok: false, category: 'task-mismatch' };
     const urls = [...new Set([
       ...[...document.querySelectorAll('link[href], script[src]')].map((element) => element.href || element.src),
       ...performance.getEntriesByType('resource').map((entry) => entry.name)
@@ -123,6 +153,81 @@ async function evaluateBooleanOnTarget(target: CdpTarget, socketFactory: (url: s
   } finally { socket.close(); }
 }
 
+async function closeInactiveVoiceOverlayTarget(target: CdpTarget, socketFactory: (url: string) => CdpSocket): Promise<void> {
+  if (!target.webSocketDebuggerUrl) throw new Error("Codex Desktop voice overlay has no debugger endpoint.");
+  const socket = socketFactory(target.webSocketDebuggerUrl);
+  try {
+    if (socket.readyState !== 1) await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Codex Desktop voice overlay close timed out.")), 3_000);
+      socket.addEventListener("open", () => { clearTimeout(timer); resolve(); }, { once: true });
+      socket.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Codex Desktop voice overlay close failed.")); }, { once: true });
+    });
+    const value = await new Promise<{ closed?: unknown; category?: unknown }>((resolve, reject) => {
+      const id = 1;
+      const timer = setTimeout(() => reject(new Error("Codex Desktop voice overlay close confirmation timed out.")), 5_000);
+      socket.addEventListener("message", (event) => {
+        let message: CdpResponse;
+        try { message = JSON.parse(String(event.data ?? "")) as CdpResponse; } catch { return; }
+        if (message.id !== id) return;
+        clearTimeout(timer);
+        if (message.error) reject(new Error(message.error.message ?? "Codex Desktop voice overlay close failed."));
+        else resolve(((message.result?.result as { value?: unknown } | undefined)?.value ?? {}) as { closed?: unknown; category?: unknown });
+      });
+      socket.send(JSON.stringify({
+        id,
+        method: "Runtime.evaluate",
+        params: {
+          expression: `(() => { if (${ACTIVE_VOICE_EXPRESSION}) return { closed: false, category: 'active' }; window.close(); return { closed: true, category: 'inactive-closed' }; })()`,
+          returnByValue: true,
+        },
+      }));
+    });
+    if (value.closed !== true) throw new Error(`Codex Desktop voice overlay remained open [${String(value.category ?? "unknown")}].`);
+  } finally { socket.close(); }
+}
+
+async function stopActiveVoiceOverlayTarget(target: CdpTarget, socketFactory: (url: string) => CdpSocket): Promise<void> {
+  if (!target.webSocketDebuggerUrl) throw new Error("Codex Desktop voice overlay has no debugger endpoint.");
+  const socket = socketFactory(target.webSocketDebuggerUrl);
+  try {
+    if (socket.readyState !== 1) await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Codex Desktop voice overlay stop timed out.")), 3_000);
+      socket.addEventListener("open", () => { clearTimeout(timer); resolve(); }, { once: true });
+      socket.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Codex Desktop voice overlay stop failed.")); }, { once: true });
+    });
+    const value = await new Promise<{ stopped?: unknown; category?: unknown }>((resolve, reject) => {
+      const id = 1;
+      const timer = setTimeout(() => reject(new Error("Codex Desktop voice overlay stop confirmation timed out.")), 5_000);
+      socket.addEventListener("message", (event) => {
+        let message: CdpResponse;
+        try { message = JSON.parse(String(event.data ?? "")) as CdpResponse; } catch { return; }
+        if (message.id !== id) return;
+        clearTimeout(timer);
+        if (message.error) reject(new Error(message.error.message ?? "Codex Desktop voice overlay stop failed."));
+        else resolve(((message.result?.result as { value?: unknown } | undefined)?.value ?? {}) as { stopped?: unknown; category?: unknown });
+      });
+      socket.send(JSON.stringify({
+        id,
+        method: "Runtime.evaluate",
+        params: {
+          expression: `(() => {
+            const stop = /(end|stop).*(voice|call)|(voice|call).*(end|stop)|音声チャットを(?:終了|停止)|通話を(?:終了|停止)/i;
+            const controls = [...document.querySelectorAll("button,[role=button]")].filter((element) => {
+              const label = [element.getAttribute("aria-label"), element.getAttribute("title"), element.getAttribute("data-testid")].filter(Boolean).join(" ");
+              return stop.test(label);
+            });
+            if (controls.length !== 1) return { stopped: false, category: controls.length === 0 ? "stop-control-missing" : "stop-control-ambiguous" };
+            controls[0].click();
+            return { stopped: true, category: "voice-reset-clicked" };
+          })()`,
+          returnByValue: true,
+        },
+      }));
+    });
+    if (value.stopped !== true) throw new Error(`Codex Desktop voice overlay did not expose one stop control [${String(value.category ?? "unknown")}].`);
+  } finally { socket.close(); }
+}
+
 async function resolveDesktopTargets(endpoint: string): Promise<readonly CdpTarget[]> {
   const response = await fetch(`${endpoint.replace(/\/$/, "")}/json/list`);
   if (!response.ok) throw new Error(`Codex Desktop debugger target discovery failed (${response.status}).`);
@@ -150,6 +255,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
   #nextCdpId = 1;
   #nextRpcId = 1;
   #connected = false;
+  #activeThreadVerifiedOnConnect = false;
   readonly #executionContexts = new Set<number>();
   readonly #directExecutionContexts = new Set<number>();
   #directOutputContextId?: number;
@@ -337,11 +443,15 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
     })()`);
     this.#connected = true;
     if (this.#verifyThreadOnConnect) {
-      const result = await this.request("thread/read", { threadId: this.#threadId, includeTurns: false }) as { thread?: { id?: string } };
+      const result = await this.request("thread/read", { threadId: this.#threadId, includeTurns: false }) as {
+        thread?: { id?: string; status?: { type?: string }; canAcceptDirectInput?: boolean };
+      };
       if (result.thread?.id !== this.#threadId) {
         this.close();
         throw new Error("Codex Desktop returned a different task identity.");
       }
+      this.#activeThreadVerifiedOnConnect = result.thread.status?.type === "active"
+        && result.thread.canAcceptDirectInput === true;
     }
   }
 
@@ -445,6 +555,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
         const processor = context.createScriptProcessor(2048, 2, 2);
         const silent = context.createGain();
         silent.gain.value = 0;
+        let trailingSilentFrames = 0;
         processor.onaudioprocess = (audioEvent) => {
           const input = audioEvent.inputBuffer;
           const frames = input.length;
@@ -461,7 +572,15 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
             view.setInt16(index * 4, l < 0 ? l * 32768 : l * 32767, true);
             view.setInt16(index * 4 + 2, r < 0 ? r * 32768 : r * 32767, true);
           }
-          if (nonSilentSamples === 0) return;
+          if (nonSilentSamples === 0) {
+            if (trailingSilentFrames <= 0) return;
+            trailingSilentFrames -= 1;
+          } else {
+            // LiveOutputSpeechGate requires 25 silent frames to close a
+            // Discord Speaking cycle. Preserve a bounded tail from the
+            // existing Codex receiver instead of dropping every silent frame.
+            trailingSilentFrames = 30;
+          }
           let binary = '';
           for (let offset = 0; offset < bytes.length; offset += 32768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
           window[bindingName](JSON.stringify({ kind: 'existing-audio', data: btoa(binary), samples: frames, sampleRate: context.sampleRate, channels: 2 }));
@@ -511,7 +630,12 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
   async ensureForegroundRealtimeVoiceActive(timeoutMs = 12_000): Promise<"already-active" | "started"> {
     if (!this.#connected) throw new Error("Codex Desktop transport is not connected.");
     if (await this.isForegroundRealtimeVoiceActive()) return "already-active";
-    const evaluated = await this.#evaluate(startNativeVoiceExpression(this.#threadId), true);
+    const inactiveOverlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
+    if (inactiveOverlays.length > 1) throw new Error("Multiple Codex Desktop voice overlays were found.");
+    if (inactiveOverlays.length === 1) {
+      throw new Error("An inactive Codex voice overlay is still open.");
+    }
+    const evaluated = await this.#evaluate(startNativeVoiceExpression(this.#threadId, this.#activeThreadVerifiedOnConnect), true);
     const result = evaluated && typeof evaluated === "object"
       ? evaluated as { ok?: unknown; category?: unknown }
       : undefined;
@@ -537,6 +661,45 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     throw new Error("Codex native Voice Talk did not become active before the bounded timeout.");
+  }
+
+  /** Stops the exact task's prior GPT Live call and removes its inactive overlay before a fresh connect. */
+  async resetForegroundRealtimeVoice(timeoutMs = 12_000): Promise<void> {
+    if (!this.#connected) throw new Error("Codex Desktop transport is not connected.");
+    await this.detachExistingRealtimeOutput().catch(() => undefined);
+    if (await this.isForegroundRealtimeVoiceActive()) {
+      await this.request("thread/realtime/stop", { threadId: this.#threadId });
+      const deadline = Date.now() + timeoutMs;
+      const rpcGraceDeadline = Math.min(deadline, Date.now() + 1_500);
+      while (Date.now() < rpcGraceDeadline) {
+        if (!(await this.isForegroundRealtimeVoiceActive())) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      if (await this.isForegroundRealtimeVoiceActive()) {
+        const activeOverlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
+        if (activeOverlays.length !== 1 || !(await evaluateBooleanOnTarget(activeOverlays[0]!, this.#socketFactory))) {
+          throw new Error("The exact previous Codex GPT Live overlay could not be identified before reconnect.");
+        }
+        await stopActiveVoiceOverlayTarget(activeOverlays[0]!, this.#socketFactory);
+        while (Date.now() < deadline) {
+          if (!(await this.isForegroundRealtimeVoiceActive())) break;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+      if (await this.isForegroundRealtimeVoiceActive()) throw new Error("The previous Codex GPT Live call did not stop before reconnect.");
+    }
+    const overlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
+    if (overlays.length > 1) throw new Error("Multiple Codex Desktop voice overlays remained before reconnect.");
+    if (overlays.length === 1) {
+      if (await evaluateBooleanOnTarget(overlays[0]!, this.#socketFactory)) throw new Error("The previous Codex GPT Live call remained active before reconnect.");
+      await closeInactiveVoiceOverlayTarget(overlays[0]!, this.#socketFactory);
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if ((await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay).length === 0) return;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error("The previous Codex GPT Live overlay did not close before reconnect.");
+    }
   }
 
   async request(method: string, params: unknown): Promise<unknown> {
@@ -597,6 +760,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
   close(): void {
     void this.detachExistingRealtimeOutput().catch(() => undefined);
     this.#connected = false;
+    this.#activeThreadVerifiedOnConnect = false;
     this.#listeners.clear();
     const socket = this.#socket;
     if (socket) {

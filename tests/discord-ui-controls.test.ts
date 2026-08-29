@@ -25,6 +25,7 @@ test("Discord UI registers four bounded controls and handles lifecycle/status/ga
   assert.equal(surface.handle(interaction("status", cfg, "status-1")).message, "Status: active; output gain 0.5 linear.");
   assert.equal(surface.handle(interaction("gain", cfg, "gain-1", { linear: 0.75 })).ok, true);
   assert.equal(surface.handle(interaction("disconnect", cfg, "disconnect-1")).ok, true);
+  assert.equal(surface.handle(interaction("disconnect", cfg, "disconnect-again")).message, "Already disconnected.");
 });
 
 test("Discord UI connect/disconnect/status delegates to the bridge lifecycle", async () => {
@@ -40,19 +41,38 @@ test("Discord UI connect/disconnect/status delegates to the bridge lifecycle", a
 test("Discord UI async connect waits for the lifecycle Ready gate before acknowledging", async () => {
   const cfg = await config();
   let ready = false;
+  const events: string[] = [];
   const lifecycle = {
     state: "connecting" as const,
     owner: "bridge-owner",
-    connect() {},
-    async waitUntilReady() { await new Promise((resolve) => setTimeout(resolve, 1)); ready = true; },
+    connect() { events.push("connect"); },
+    async waitUntilReady() { events.push("ready"); await new Promise((resolve) => setTimeout(resolve, 1)); ready = true; },
     disconnect() {},
+    async disconnectAndWait() { events.push("disconnect-complete"); },
   };
   const surface = new DiscordUiControlSurface(cfg, { now: () => 1_000, lifecycle });
   const result = await surface.handleAsync(interaction("connect", cfg, "connect-ready"));
   assert.equal(ready, true);
   assert.equal(result.ok, true);
   assert.equal(result.message, "Connected.");
-  assert.equal((await surface.handleAsync(interaction("connect", cfg, "connect-ready-again"))).message, "Already connected.");
+  assert.equal((await surface.handleAsync(interaction("connect", cfg, "connect-ready-again"))).message, "Connected.");
+  assert.deepEqual(events, ["connect", "ready", "disconnect-complete", "connect", "ready"]);
+});
+
+test("Discord UI identifies a paused or completed Codex voice overlay", async () => {
+  const cfg = await config();
+  const lifecycle = {
+    state: "degraded" as const,
+    owner: "bridge-owner",
+    connect() {},
+    async waitUntilReady() { throw new Error("not ready"); },
+    failureCode: () => "codex-inactive-overlay" as const,
+    disconnect() {},
+  };
+  const surface = new DiscordUiControlSurface(cfg, { now: () => 1_000, lifecycle });
+  const result = await surface.handleAsync(interaction("connect", cfg, "connect-inactive-overlay"));
+  assert.equal(result.ok, false);
+  assert.equal(result.message, "Connection blocked: a paused or completed Codex voice overlay is still open. Close it, then run /connect again; no runner was started.");
 });
 
 test("Discord UI fails closed for unauthorized, stale, replayed, malformed, and out-of-range interactions", async () => {

@@ -43,6 +43,7 @@ export interface DiscordBridgeLifecyclePort {
   waitUntilReady?(): Promise<void>;
   failureCode?(): BridgeFailureCode | undefined;
   disconnect(): void;
+  disconnectAndWait?(): Promise<void>;
   status(): { readonly state: DiscordBridgeLifecyclePort["state"]; readonly owner: string; readonly channel: "configured-target-matched" | "configured-target-mismatch" | "unknown" };
 }
 export interface DiscordGainStore {
@@ -89,7 +90,7 @@ export class DiscordUiControlSurface {
       return { ok: true, message: "Connected.", state: this.#state };
     }
     if (interaction.command === "disconnect") {
-      if (this.#state.sessionState !== "active") return reject("Interaction rejected.");
+      if (this.#state.sessionState !== "active") return { ok: true, message: "Already disconnected.", state: this.#state };
       this.#lifecycle?.disconnect();
       this.#state = { ...this.#state, sessionState: "stopped" };
       return { ok: true, message: "Disconnected.", state: this.#state };
@@ -115,20 +116,23 @@ export class DiscordUiControlSurface {
     if (!Number.isSafeInteger(interaction.createdAt) || Math.abs(this.#now() - interaction.createdAt) > MAX_AGE_MS) return reject("Interaction rejected.");
     const decision = authorizeDiscordCommand(this.#config, { ...interaction.context, command: "connect" });
     if (!decision.allowed) return reject("Interaction rejected.");
-    if (this.#state.sessionState === "active") {
-      this.#seen.add(interaction.id);
-      return { ok: true, message: "Already connected.", state: this.#state };
-    }
-    if (this.#state.sessionState !== "ready" && this.#state.sessionState !== "stopped") return reject("Interaction rejected.");
+    if (!["ready", "stopped", "active"].includes(this.#state.sessionState)) return reject("Interaction rejected.");
     this.#seen.add(interaction.id);
     try {
+      if (this.#state.sessionState === "active") {
+        await this.#lifecycle?.disconnectAndWait?.();
+        this.#state = { ...this.#state, sessionState: "stopped" };
+      }
       this.#lifecycle?.connect();
       await this.#lifecycle?.waitUntilReady?.();
     } catch {
       const failure = this.#lifecycle?.failureCode?.();
       this.#lifecycle?.disconnect();
       const messages: Partial<Record<BridgeFailureCode, string>> = {
+        "previous-session-reset-failed": "Connection blocked: the previous Discord/Codex voice session could not be fully disconnected; no new runner was started.",
         "codex-debugger-unavailable": "Connection blocked: current Codex Desktop has no local audio attachment endpoint; no runner was started.",
+        "codex-task-unverified": "Connection blocked: Relay could not verify that this is the configured Codex task. Open the configured task and run /connect again; no runner was started.",
+        "codex-inactive-overlay": "Connection blocked: a paused or completed Codex voice overlay is still open. Close it, then run /connect again; no runner was started.",
         "codex-voice-inactive": "Connection blocked: the exact Codex task has no active voice call; no runner was started.",
         "codex-sender-unavailable": "Connection blocked: start the Codex voice call in this task first; no runner was started.",
         "codex-route-attachment-failed": "Connection blocked: the Codex call input route could not be attached and was restored; no runner was started.",

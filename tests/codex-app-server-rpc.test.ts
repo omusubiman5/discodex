@@ -44,10 +44,14 @@ class FakeCdpSocket {
   readonly #listeners = new Map<string, Set<(event: { data?: unknown }) => void>>();
   #voiceActive: boolean;
   readonly #commandModuleAvailable: boolean;
+  readonly #activeTaskVerified: boolean;
+  readonly #rpcStopChangesVoice: boolean;
 
-  constructor(voiceActive = true, commandModuleAvailable = true) {
+  constructor(voiceActive = true, commandModuleAvailable = true, activeTaskVerified = true, rpcStopChangesVoice = true) {
     this.#voiceActive = voiceActive;
     this.#commandModuleAvailable = commandModuleAvailable;
+    this.#activeTaskVerified = activeTaskVerified;
+    this.#rpcStopChangesVoice = rpcStopChangesVoice;
   }
 
   addEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
@@ -61,18 +65,35 @@ class FakeCdpSocket {
     this.sent.push(command as unknown as Record<string, unknown>);
     queueMicrotask(() => {
       const expression = command.params?.expression;
-      if (expression?.includes("composer.startVoiceMode") && this.#commandModuleAvailable) this.#voiceActive = true;
+      const activeFallbackDenied = expression?.includes("activeTaskFallback") && expression.includes("&& false");
+      if (expression?.includes("thread/realtime/stop") && this.#rpcStopChangesVoice) this.#voiceActive = false;
+      if (expression?.includes("voice-reset-clicked")) this.#voiceActive = false;
+      if (expression?.includes("window.close()")) this.#voiceActive = false;
+      if (expression?.includes("composer.startVoiceMode") && this.#commandModuleAvailable && !activeFallbackDenied) this.#voiceActive = true;
       if (command.method === "Input.dispatchKeyEvent" && command.params?.type === "rawKeyDown" && command.params.key === "V" && command.params.modifiers === 10) this.#voiceActive = true;
-      const value = expression?.includes("getDynamicConfig")
+      const value = expression?.includes("voice-reset-clicked")
+        ? { stopped: true, category: "voice-reset-clicked" }
+        : expression?.includes("window.close()")
+        ? { closed: true, category: "inactive-closed" }
+        : expression?.includes("getDynamicConfig")
         ? { model: "gpt-live-1-codex", version: "v3", includeStartupContext: true }
-        : expression?.includes("composer.startVoiceMode") ? this.#commandModuleAvailable ? { ok: true, category: "started" } : { ok: false, category: "command-module-unavailable" }
+        : expression?.includes("composer.startVoiceMode") ? activeFallbackDenied
+          ? { ok: false, category: "task-mismatch" }
+          : this.#commandModuleAvailable ? { ok: true, category: "started" } : { ok: false, category: "command-module-unavailable" }
         : expression?.includes(".appendAudio(") ? { ok: true, category: "appended" }
         : expression?.includes("prepareRealtime()") ? "v=0\r\n" : true;
-      const evaluatedValue = expression?.includes("querySelectorAll(\"button,[role=button]\")") ? this.#voiceActive : value;
+      const evaluatedValue = expression?.includes("window.close()") || expression?.includes("voice-reset-clicked") ? value
+        : expression?.includes("querySelectorAll(\"button,[role=button]\")") ? this.#voiceActive : value;
       this.emit({ id: command.id, result: command.method === "Runtime.evaluate" ? { result: { value: evaluatedValue } } : {} });
       const rpcId = expression?.match(/discord-voice-[0-9]+-[0-9]+/)?.[0];
       if (!rpcId) return;
-      const result = expression!.includes("thread/read") ? { thread: { id: THREAD_ID } } : {};
+      const result = expression!.includes("thread/read") ? {
+        thread: {
+          id: THREAD_ID,
+          status: { type: this.#activeTaskVerified ? "active" : "idle" },
+          canAcceptDirectInput: true,
+        },
+      } : {};
       this.emit({ method: "Runtime.bindingCalled", params: { name: "__codexDiscordVoiceBridgeEmit", payload: JSON.stringify({ kind: "response", message: { id: rpcId, result } }) } });
     });
   }
@@ -120,6 +141,7 @@ test("Desktop-owned transport uses the existing renderer app-server path and pin
   assert.equal(socket.sent.some((command) => command.method === "Runtime.addBinding"), true);
   assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("thread/read")), true);
   assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("nonSilentSamples === 0")), true);
+  assert.match(DesktopOwnedCodexAppServerTransport.prototype.attachExistingRealtimeOutput.toString(), /trailingSilentFrames = 30/);
   transport.close();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("delete window")), true);
@@ -180,8 +202,98 @@ test("Desktop Voice Talk activation uses the M18 native command and waits for ac
   assert.equal(await transport.ensureForegroundRealtimeVoiceActive(), "already-active");
   const nativeCommand = socket.sent.find((command) => String((command as { params?: { expression?: string } }).params?.expression).includes("composer.startVoiceMode"));
   assert.ok(nativeCommand);
+  assert.match(String((nativeCommand as { params?: { expression?: string } }).params?.expression), /localConversationId/);
+  assert.match(String((nativeCommand as { params?: { expression?: string } }).params?.expression), /sessions\[0\]/);
+  assert.match(String((nativeCommand as { params?: { expression?: string } }).params?.expression), /activeTaskFallback/);
+  assert.match(String((nativeCommand as { params?: { expression?: string } }).params?.expression), /&& true/);
   assert.match(JSON.stringify(nativeCommand), new RegExp(THREAD_ID));
   assert.match(JSON.stringify(nativeCommand), /discord_voice_bridge/);
+  transport.close();
+});
+
+test("Desktop fresh-connect reset stops the exact GPT Live call before reconnect", async () => {
+  const socket = new FakeCdpSocket(true);
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => [{ type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" }],
+    socketFactory: () => socket,
+  });
+  await transport.connect();
+  await transport.resetForegroundRealtimeVoice();
+  assert.equal(await transport.isForegroundRealtimeVoiceActive(), false);
+  assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), true);
+  transport.close();
+});
+
+test("Desktop fresh-connect reset closes one inactive GPT Live overlay", async () => {
+  const main = new FakeCdpSocket(false);
+  const overlay = new FakeCdpSocket(false);
+  const targets = () => [
+    { type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" },
+    ...(overlay.sent.some((command) => JSON.stringify(command).includes("window.close()")) ? [] : [
+      { type: "page", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://desktop/voice" },
+    ]),
+  ];
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => targets(),
+    socketFactory: (url) => url.endsWith("/voice") ? overlay : main,
+  });
+  await transport.connect();
+  await transport.resetForegroundRealtimeVoice();
+  assert.equal(overlay.sent.some((command) => JSON.stringify(command).includes("window.close()")), true);
+  transport.close();
+});
+
+test("Desktop fresh-connect reset uses the unique overlay stop control when the exact stop RPC leaves UI active", async () => {
+  const main = new FakeCdpSocket(false);
+  const overlay = new FakeCdpSocket(true, true, true, false);
+  const targets = () => [
+    { type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" },
+    ...(overlay.sent.some((command) => JSON.stringify(command).includes("window.close()")) ? [] : [
+      { type: "page", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://desktop/voice" },
+    ]),
+  ];
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => targets(),
+    socketFactory: (url) => url.endsWith("/voice") ? overlay : main,
+  });
+  await transport.connect();
+  await transport.resetForegroundRealtimeVoice(3_000);
+  assert.equal(main.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), true);
+  assert.equal(overlay.sent.some((command) => JSON.stringify(command).includes("voice-reset-clicked")), true);
+  assert.equal(overlay.sent.some((command) => JSON.stringify(command).includes("window.close()")), true);
+  transport.close();
+});
+
+test("Desktop Voice Talk does not use the active-task fallback for an idle task", async () => {
+  const socket = new FakeCdpSocket(false, true, false);
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => [{ type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" }],
+    socketFactory: () => socket,
+  });
+  await transport.connect();
+  await assert.rejects(() => transport.ensureForegroundRealtimeVoiceActive(), /task-mismatch/);
+  assert.equal(socket.sent.some((command) => command.method === "Input.dispatchKeyEvent"), false);
+  transport.close();
+});
+
+test("Desktop Voice Talk rejects an inactive avatar overlay before starting another task call", async () => {
+  const main = new FakeCdpSocket(false);
+  const overlay = new FakeCdpSocket(false);
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => [
+      { type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" },
+      { type: "page", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://desktop/voice" },
+    ],
+    socketFactory: (url) => url.endsWith("/voice") ? overlay : main,
+  });
+  await transport.connect();
+  await assert.rejects(() => transport.ensureForegroundRealtimeVoiceActive(), /inactive Codex voice overlay/);
+  assert.equal(main.sent.some((command) => String((command as { params?: { expression?: string } }).params?.expression).includes("composer.startVoiceMode")), false);
   transport.close();
 });
 

@@ -6,11 +6,14 @@ export interface BridgeLifecycleOptions {
   readonly owner: string;
   readonly inspect?: () => BridgeRuntimeSnapshot;
   readonly onConnect?: () => "connected" | "connecting";
-  readonly onDisconnect?: () => void;
+  readonly onDisconnect?: () => void | Promise<void>;
 }
 
 export type BridgeFailureCode =
+  | "previous-session-reset-failed"
   | "codex-debugger-unavailable"
+  | "codex-task-unverified"
+  | "codex-inactive-overlay"
   | "codex-voice-inactive"
   | "codex-sender-unavailable"
   | "codex-route-attachment-failed"
@@ -60,7 +63,8 @@ export class DiscordBridgeLifecycle implements DiscordBridgeLifecyclePort {
   #participantTransition: "none" | "initial" | "rejoin-remap" = "none";
   readonly owner: string;
   readonly #onConnect?: () => void;
-  readonly #onDisconnect?: () => void;
+  readonly #onDisconnect?: () => void | Promise<void>;
+  #disconnecting?: Promise<void>;
   readonly #inspect?: () => BridgeRuntimeSnapshot;
 
   constructor(options: BridgeLifecycleOptions) {
@@ -97,7 +101,16 @@ export class DiscordBridgeLifecycle implements DiscordBridgeLifecyclePort {
   }
   disconnect(): void {
     if (this.#current === "disconnected") return;
-    try { this.#onDisconnect?.(); } finally { this.#participant = undefined; this.#participantTransition = "none"; this.#current = "disconnected"; }
+    const cleanup = this.#onDisconnect?.();
+    this.#participant = undefined;
+    this.#participantTransition = "none";
+    this.#current = "disconnected";
+    this.#disconnecting = Promise.resolve(cleanup);
+  }
+  async disconnectAndWait(): Promise<void> {
+    if (this.#current !== "disconnected") this.disconnect();
+    await this.#disconnecting;
+    this.#disconnecting = undefined;
   }
   observeParticipant(user: string, session: string, ssrc: number): void {
     if (!user || !session || !Number.isSafeInteger(ssrc) || ssrc <= 0) throw new Error("Discord participant state is invalid.");

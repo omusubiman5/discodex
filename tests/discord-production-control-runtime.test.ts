@@ -5,7 +5,40 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { validateConfig } from "../src/core/config.ts";
-import { createProductionDiscordControlRuntime, createCodexCallInputRoute } from "../src/adapters/discord/production-control-runtime.ts";
+import { createProductionDiscordControlRuntime, createCodexCallInputRoute, createPreviousBridgeSessionReset } from "../src/adapters/discord/production-control-runtime.ts";
+
+test("previous-session reset uses the validated runtime voice target instead of environment-only configuration", async () => {
+  const previousThreadId = process.env.CODEX_THREAD_ID;
+  const previousEndpoint = process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT;
+  process.env.CODEX_THREAD_ID = "00000000-0000-0000-0000-000000000000";
+  process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT = "http://127.0.0.1:52232";
+  let leaveTarget: { guildId: string; channelId: string } | undefined;
+  let connected = 0; let reset = 0; let closed = 0;
+  try {
+    const barrier = createPreviousBridgeSessionReset(
+      { guildId: "11111111111111111", voiceChannelId: "22222222222222222" },
+      {
+        voiceLeave: async (options) => {
+          leaveTarget = options.target;
+          return { phase: "voice-leave", state: "pass" };
+        },
+        createTransport: () => ({
+          async connect() { connected += 1; },
+          async resetForegroundRealtimeVoice() { reset += 1; },
+          close() { closed += 1; },
+        }),
+      },
+    );
+    await barrier.reset();
+    assert.deepEqual(leaveTarget, { guildId: "11111111111111111", channelId: "22222222222222222" });
+    assert.equal(connected, 1);
+    assert.equal(reset, 1);
+    assert.equal(closed, 1);
+  } finally {
+    if (previousThreadId === undefined) delete process.env.CODEX_THREAD_ID; else process.env.CODEX_THREAD_ID = previousThreadId;
+    if (previousEndpoint === undefined) delete process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT; else process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT = previousEndpoint;
+  }
+});
 
 test("route restore makes one deterministic attempt and leaves stale reconciliation to the next preflight", async () => {
   const reports = [
@@ -128,18 +161,19 @@ test("production control composition starts one runner, observes join/match, and
     gainProvider = provider;
     return new Promise<void>((resolve) => { resolveRunner = resolve; signal.addEventListener("abort", () => { aborted = true; resolve(); }, { once: true }); });
   };
-  let attaches = 0; let restores = 0;
+  let attaches = 0; let restores = 0; let resets = 0;
   const inputRoute = {
     async attach() { attaches += 1; },
     async restore() { restores += 1; },
   };
-  const runtime = createProductionDiscordControlRuntime(config, runner, inputRoute, { lockPath });
+  const runtime = createProductionDiscordControlRuntime(config, runner, inputRoute, { lockPath, previousSessionReset: { async reset() { resets += 1; } } });
   const context = { guildId: config.guildId, channelId: config.textChannelId, userId: config.allowedUserIds[0], command: "status" as const };
   const make = (command: any, id: string) => ({ id, command, createdAt: Date.now(), context });
   assert.equal(runtime.controls.handle(make("connect", "connect-1")).ok, true);
   assert.equal(runtime.controls.handle(make("connect", "connect-2")).message, "Already connected.");
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(attaches, 1);
+  assert.equal(resets, 1);
   assert.equal(starts, 1);
   assert.equal(gainProvider(), 0.5);
   const gainResult = runtime.controls.handle({ ...make("gain", "gain-live"), options: { linear: 0.75 } });
@@ -153,7 +187,7 @@ test("production control composition starts one runner, observes join/match, and
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(aborted, true);
   assert.equal(runtime.lifecycle.failureCode(), undefined);
-  assert.equal(restores, 1);
+  assert.equal(restores, 2);
   if (previousStore === undefined) delete process.env.CODEX_BRIDGE_GAIN_STORE_PATH; else process.env.CODEX_BRIDGE_GAIN_STORE_PATH = previousStore;
   rmSync(storeDir, { recursive: true, force: true });
 });
@@ -169,12 +203,12 @@ test("production control restores the original input when attachment fails", asy
   const runtime = createProductionDiscordControlRuntime(config, async () => { starts += 1; }, {
     async attach() { throw new Error("route rejected"); },
     async restore() { restores += 1; },
-  }, { lockPath });
+  }, { lockPath, previousSessionReset: { async reset() {} } });
   const context = { guildId: config.guildId, channelId: config.textChannelId, userId: config.allowedUserIds[0], command: "connect" as const };
   assert.equal(runtime.controls.handle({ id: "connect-fail", command: "connect", createdAt: Date.now(), context }).ok, true);
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(starts, 0);
-  assert.equal(restores, 1);
+  assert.equal(restores, 2);
   assert.equal(runtime.lifecycle.status().state, "degraded");
   if (previousStore === undefined) delete process.env.CODEX_BRIDGE_GAIN_STORE_PATH; else process.env.CODEX_BRIDGE_GAIN_STORE_PATH = previousStore;
   rmSync(storeDir, { recursive: true, force: true });
@@ -191,12 +225,58 @@ test("production control reports an unavailable Codex attachment endpoint withou
   const runtime = createProductionDiscordControlRuntime(config, async () => { starts += 1; }, {
     async attach() { throw new Error("The exact current Codex task route is not configured."); },
     async restore() {},
-  }, { lockPath });
+  }, { lockPath, previousSessionReset: { async reset() {} } });
   const context = { guildId: config.guildId, channelId: config.textChannelId, userId: config.allowedUserIds[0], command: "connect" as const };
   const result = await runtime.controls.handleAsync({ id: "connect-no-debugger", command: "connect", createdAt: Date.now(), context });
   assert.equal(starts, 0);
   assert.equal(result.ok, false);
   assert.equal(result.message, "Connection blocked: current Codex Desktop has no local audio attachment endpoint; no runner was started.");
+  if (previousStore === undefined) delete process.env.CODEX_BRIDGE_GAIN_STORE_PATH; else process.env.CODEX_BRIDGE_GAIN_STORE_PATH = previousStore;
+  rmSync(storeDir, { recursive: true, force: true });
+});
+
+test("production connect fails closed when previous Discord or GPT Live dependencies do not reset", async () => {
+  const raw = JSON.parse(await readFile(new URL("../config/bridge.example.json", import.meta.url), "utf8"));
+  const config = validateConfig(raw).discord;
+  const storeDir = mkdtempSync(join(tmpdir(), "cdvb-production-reset-failure-"));
+  const lockPath = join(storeDir, "live-call.lock");
+  const previousStore = process.env.CODEX_BRIDGE_GAIN_STORE_PATH;
+  process.env.CODEX_BRIDGE_GAIN_STORE_PATH = join(storeDir, "gain.json");
+  let starts = 0; let attaches = 0; let restores = 0;
+  const runtime = createProductionDiscordControlRuntime(config, async () => { starts += 1; }, {
+    async attach() { attaches += 1; },
+    async restore() { restores += 1; },
+  }, {
+    lockPath,
+    previousSessionReset: { async reset() { throw new Error("GPT Live still active"); } },
+  });
+  const context = { guildId: config.guildId, channelId: config.textChannelId, userId: config.allowedUserIds[0], command: "connect" as const };
+  const result = await runtime.controls.handleAsync({ id: "connect-reset-fail", command: "connect", createdAt: Date.now(), context });
+  assert.equal(result.ok, false);
+  assert.equal(result.message, "Connection blocked: the previous Discord/Codex voice session could not be fully disconnected; no new runner was started.");
+  assert.equal(starts, 0);
+  assert.equal(attaches, 0);
+  assert.equal(restores, 2);
+  if (previousStore === undefined) delete process.env.CODEX_BRIDGE_GAIN_STORE_PATH; else process.env.CODEX_BRIDGE_GAIN_STORE_PATH = previousStore;
+  rmSync(storeDir, { recursive: true, force: true });
+});
+
+test("production control reports an unverified Codex task without claiming voice is absent", async () => {
+  const raw = JSON.parse(await readFile(new URL("../config/bridge.example.json", import.meta.url), "utf8"));
+  const config = validateConfig(raw).discord;
+  const storeDir = mkdtempSync(join(tmpdir(), "cdvb-production-task-mismatch-"));
+  const lockPath = join(storeDir, "live-call.lock");
+  const previousStore = process.env.CODEX_BRIDGE_GAIN_STORE_PATH;
+  process.env.CODEX_BRIDGE_GAIN_STORE_PATH = join(storeDir, "gain.json");
+  let starts = 0;
+  const runtime = createProductionDiscordControlRuntime(config, async () => { starts += 1; }, {
+    async attach() { throw new Error("Codex native Voice Talk command failed [task-mismatch]."); },
+    async restore() {},
+  }, { lockPath, previousSessionReset: { async reset() {} } });
+  const context = { guildId: config.guildId, channelId: config.textChannelId, userId: config.allowedUserIds[0], command: "connect" as const };
+  const result = await runtime.controls.handleAsync({ id: "connect-task-mismatch", command: "connect", createdAt: Date.now(), context });
+  assert.equal(starts, 0);
+  assert.equal(result.message, "Connection blocked: Relay could not verify that this is the configured Codex task. Open the configured task and run /connect again; no runner was started.");
   if (previousStore === undefined) delete process.env.CODEX_BRIDGE_GAIN_STORE_PATH; else process.env.CODEX_BRIDGE_GAIN_STORE_PATH = previousStore;
   rmSync(storeDir, { recursive: true, force: true });
 });
@@ -212,7 +292,7 @@ test("production control tells the user to start Codex voice when no sender exis
   const runtime = createProductionDiscordControlRuntime(config, async () => { starts += 1; }, {
     async attach() { throw new Error("The current Codex task has no live audio sender exposed for non-owning attachment."); },
     async restore() {},
-  }, { lockPath });
+  }, { lockPath, previousSessionReset: { async reset() {} } });
   const context = { guildId: config.guildId, channelId: config.textChannelId, userId: config.allowedUserIds[0], command: "connect" as const };
   const result = await runtime.controls.handleAsync({ id: "connect-no-sender", command: "connect", createdAt: Date.now(), context });
   assert.equal(starts, 0);

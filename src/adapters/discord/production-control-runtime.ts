@@ -1,5 +1,5 @@
 import type { BridgeConfig } from "../../core/contracts.ts";
-import { acquireLiveCallProcessLock } from "../../discord-gateway-smoke.ts";
+import { acquireLiveCallProcessLock, runVoiceLeave } from "../../discord-gateway-smoke.ts";
 import { runMeetronWindowsLive } from "../../../scripts/run-meetron-windows-live.mjs";
 import { runMeetronMacosLive } from "../../../scripts/run-meetron-macos-live.mjs";
 import { createDiscordBridgeLifecycle, createLiveCallRuntimeSnapshotProvider, type BridgeRuntimeSnapshot } from "./bridge-lifecycle.ts";
@@ -20,6 +20,15 @@ export interface CodexCallInputRoute {
   restore(): Promise<void>;
 }
 
+export interface PreviousBridgeSessionReset {
+  reset(): Promise<void>;
+}
+
+interface PreviousBridgeSessionResetDependencies {
+  readonly voiceLeave?: typeof runVoiceLeave;
+  readonly createTransport?: (options: { readonly threadId: string; readonly debuggerEndpoint: string }) => Pick<DesktopOwnedCodexAppServerTransport, "connect" | "resetForegroundRealtimeVoice" | "close">;
+}
+
 const execFileAsync = promisify(execFile);
 const routeScript = fileURLToPath(new URL("../../../scripts/inspect-codex-realtime-audio-route.mjs", import.meta.url));
 // Real renderer object queries and graph attachment have measured up to 19 s
@@ -27,6 +36,37 @@ const routeScript = fileURLToPath(new URL("../../../scripts/inspect-codex-realti
 // healthy graph transaction at the former 15 s threshold.
 const routeOperationTimeoutMs = 45_000;
 const restoreAttempts = 1;
+
+export function createPreviousBridgeSessionReset(
+  target: Pick<BridgeConfig["discord"], "guildId" | "voiceChannelId">,
+  dependencies: PreviousBridgeSessionResetDependencies = {},
+): PreviousBridgeSessionReset {
+  const voiceLeave = dependencies.voiceLeave ?? runVoiceLeave;
+  const createTransport = dependencies.createTransport ?? ((options) => new DesktopOwnedCodexAppServerTransport(options));
+  return {
+    async reset() {
+      // Discord documents channel_id:null as the explicit voice disconnect.
+      // Do this even when no local runner exists so a prior gateway/session
+      // cannot be inherited by the fresh join.
+      // Use the already-validated application-command target. Reading a
+      // second environment-only target here can disagree with production
+      // configuration and would make the reset barrier fail before cleanup.
+      await voiceLeave({ target: { guildId: target.guildId, channelId: target.voiceChannelId } });
+      const threadId = process.env.CODEX_THREAD_ID?.trim();
+      const debuggerEndpoint = process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT?.trim();
+      if (!threadId || !/^[0-9a-f-]{20,}$/i.test(threadId) || !debuggerEndpoint) {
+        throw new Error("The exact current Codex task route is not configured.");
+      }
+      const transport = createTransport({ threadId, debuggerEndpoint });
+      try {
+        await transport.connect();
+        await transport.resetForegroundRealtimeVoice();
+      } finally {
+        transport.close();
+      }
+    },
+  };
+}
 
 function parseRouteReport(stdout: string): Record<string, unknown> {
   const report = JSON.parse(stdout.trim());
@@ -158,7 +198,7 @@ export function createProductionDiscordControlRuntime(
   config: BridgeConfig["discord"],
   runner: ProductionRunner = (process.platform === "darwin" ? runMeetronMacosLive : runMeetronWindowsLive) as unknown as ProductionRunner,
   inputRoute: CodexCallInputRoute = createCodexCallInputRoute(),
-  options: { readonly lockPath?: string } = {},
+  options: { readonly lockPath?: string; readonly previousSessionReset?: PreviousBridgeSessionReset } = {},
 ) {
   let controller: AbortController | undefined;
   let release: (() => void) | undefined;
@@ -166,12 +206,16 @@ export function createProductionDiscordControlRuntime(
   let voice = { joined: false, targetMatched: false };
   const gainStore = new DiscordOutputGainPersistence(process.env.CODEX_BRIDGE_GAIN_STORE_PATH || resolve("runtime/discord-output-gain.json"), config.guildId, config.voiceChannelId);
   const initialGain = gainStore.load();
+  const previousSessionReset = options.previousSessionReset ?? createPreviousBridgeSessionReset(config);
   if (gainStore.degraded) gainStore.save(initialGain);
   const observer = (event: { readonly joined: boolean; readonly targetMatched: boolean }) => { voice = { joined: event.joined, targetMatched: event.targetMatched }; };
   const emit = (state: string) => process.stdout.write(`${JSON.stringify({ state, secretOutput: false, identifierOutput: false })}\n`);
   const classifyFailure = (error: unknown) => {
     const message = error instanceof Error ? error.message : "";
+    if (message.includes("Previous bridge session reset failed")) return "previous-session-reset-failed" as const;
     if (message.includes("route is not configured") || message.includes("debugger endpoint") || message.includes("Loopback Codex debugger")) return "codex-debugger-unavailable" as const;
+    if (message.includes("task-mismatch") || message.includes("different task identity")) return "codex-task-unverified" as const;
+    if (message.includes("inactive Codex voice overlay")) return "codex-inactive-overlay" as const;
     if (message.includes("Voice Talk") || message.includes("foreground voice")) return "codex-voice-inactive" as const;
     if (message.includes("no live audio sender") || message.includes("Exactly one reversible")) return "codex-sender-unavailable" as const;
     if (message.includes("attached reversibly") || message.includes("audio graph") || message.includes("could not be reconciled")
@@ -186,6 +230,14 @@ export function createProductionDiscordControlRuntime(
       const signal = controller.signal;
       task = (async () => {
         try {
+          emit("previous-session-resetting");
+          await inputRoute.restore();
+          try { await previousSessionReset.reset(); }
+          catch (error) {
+            const detail = error instanceof Error ? error.message : "unknown reset failure";
+            throw new Error(`Previous bridge session reset failed: ${detail}`);
+          }
+          emit("previous-session-reset-complete");
           emit("codex-input-route-attaching");
           await inputRoute.attach();
           emit("codex-input-route-attached");
@@ -208,7 +260,10 @@ export function createProductionDiscordControlRuntime(
       }).finally(() => { release?.(); release = undefined; task = undefined; controller = undefined; voice = { joined: false, targetMatched: false }; });
       return "connecting";
     },
-    onDisconnect: () => { controller?.abort(); },
+    onDisconnect: async () => {
+      controller?.abort();
+      await task?.catch(() => undefined);
+    },
     runtimeSnapshot: createLiveCallRuntimeSnapshotProvider({ lockPath: options.lockPath, voice: () => voice }),
   });
   return { controls: new DiscordUiControlSurface(config, { lifecycle, gainStore }), lifecycle, gainStore };
