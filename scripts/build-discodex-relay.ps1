@@ -6,7 +6,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $appScript = Join-Path $repoRoot 'scripts\run-discodex-relay-app.ps1'
-$windowsPowerShell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$launcherScript = Join-Path $repoRoot 'scripts\launch-discodex-relay-hidden.vbs'
+$windowsScriptHost = Join-Path $env:SystemRoot 'System32\wscript.exe'
 if (-not $OutputPath) { $OutputPath = Join-Path $repoRoot 'dist\Discodex Relay.lnk' }
 $outputFullPath = [IO.Path]::GetFullPath($OutputPath)
 $distRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'dist'))
@@ -15,7 +16,8 @@ if (-not $outputFullPath.StartsWith($distRoot + [IO.Path]::DirectorySeparatorCha
 }
 if ([IO.Path]::GetExtension($outputFullPath) -ine '.lnk') { throw 'Relay application entry must be a Windows shortcut.' }
 if (-not (Test-Path -LiteralPath $appScript -PathType Leaf)) { throw 'Relay application script is unavailable.' }
-if (-not (Test-Path -LiteralPath $windowsPowerShell -PathType Leaf)) { throw 'Windows PowerShell is unavailable.' }
+if (-not (Test-Path -LiteralPath $launcherScript -PathType Leaf)) { throw 'Relay hidden launcher is unavailable.' }
+if (-not (Test-Path -LiteralPath $windowsScriptHost -PathType Leaf)) { throw 'Windows Script Host is unavailable.' }
 
 $tokens = $null
 $parseErrors = $null
@@ -26,8 +28,8 @@ New-Item -ItemType Directory -Path (Split-Path -Parent $outputFullPath) -Force |
 $shell = New-Object -ComObject WScript.Shell
 try {
   $shortcut = $shell.CreateShortcut($outputFullPath)
-  $shortcut.TargetPath = $windowsPowerShell
-  $shortcut.Arguments = '-NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + $appScript + '"'
+  $shortcut.TargetPath = $windowsScriptHost
+  $shortcut.Arguments = '"' + $launcherScript + '"'
   $shortcut.WorkingDirectory = $repoRoot
   $shortcut.Description = 'Discodex Voice Bridge control and GPT Live output gain'
   $shortcut.IconLocation = "$env:SystemRoot\System32\SHELL32.dll,14"
@@ -41,8 +43,8 @@ finally {
 $readbackShell = New-Object -ComObject WScript.Shell
 try {
   $readback = $readbackShell.CreateShortcut($outputFullPath)
-  if ($readback.TargetPath -ine $windowsPowerShell -or $readback.Arguments -notmatch [regex]::Escape($appScript)) {
-    throw 'Relay shortcut readback did not match the fixed signed host and app script.'
+  if ($readback.TargetPath -ine $windowsScriptHost -or $readback.Arguments -notmatch [regex]::Escape($launcherScript)) {
+    throw 'Relay shortcut readback did not match the hidden launcher.'
   }
 }
 finally {
@@ -61,7 +63,7 @@ finally { $stream.Dispose() }
 [pscustomobject]@{
   built = $true
   artifact = $artifact.Name
-  host = 'Windows PowerShell'
+  host = 'Windows Script Host'
   bytes = $artifact.Length
   sha256 = $hash
   secretOutput = $false

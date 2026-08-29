@@ -170,11 +170,15 @@ test("Relay PowerShell boundaries parse without errors", () => {
   }
 });
 
-test("Relay builds a fixed shortcut to signed Windows PowerShell and probe is read-only", () => {
+test("Relay builds a fixed shortcut through a windowless launcher and probe is read-only", () => {
   const buildSource = readFileSync(buildPath, "utf8");
+  const launcherSource = readFileSync(resolve("scripts/launch-discodex-relay-hidden.vbs"), "utf8");
   assert.match(buildSource, /WScript\.Shell/);
-  assert.match(buildSource, /WindowsPowerShell\\v1\.0\\powershell\.exe/);
-  assert.match(buildSource, /-NoProfile -STA -WindowStyle Hidden/);
+  assert.match(buildSource, /System32\\wscript\.exe/);
+  assert.match(buildSource, /launch-discodex-relay-hidden\.vbs/);
+  assert.match(launcherSource, /WindowsPowerShell\\v1\.0\\powershell\.exe/);
+  assert.match(launcherSource, /-NoProfile -STA -WindowStyle Hidden/);
+  assert.match(launcherSource, /shell\.Run command, 0, False/);
   const controlCount = () => spawnSync(
     "powershell.exe",
     ["-NoProfile", "-Command", "@(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" -ErrorAction SilentlyContinue | Where-Object CommandLine -match 'run-discord-production-control\\.mjs').Count"],
