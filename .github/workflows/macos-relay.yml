@@ -38,6 +38,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 26
+      - run: brew install ffmpeg
       - run: npm ci
       - run: npm test
       - run: node --test tests/macos-relay-app.test.mjs tests/macos-coreaudio-source.test.mjs
