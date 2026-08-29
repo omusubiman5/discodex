@@ -51,10 +51,23 @@ test("Relay app follows the supplied classical brown and blue design system", ()
   assert.match(source, /FromArgb\(0xf4, 0xf4, 0xf4\)/);
   assert.match(source, /\[Drawing\.Font\]::new\('Meiryo'/);
   assert.match(source, /\$header\.BackColor = \$ghibliBrown/);
+  assert.match(source, /function Set-PrimaryButtonStyle[\s\S]*?\$Button\.BackColor = \$buttonPrimaryBlue/);
+  assert.doesNotMatch(source, /function Set-PrimaryButtonStyle[\s\S]*?\$Button\.BackColor = \$ghibliBrown/);
   assert.match(source, /FlatAppearance\.BorderColor = \$buttonBorderBlue/);
   assert.match(source, /Set-RoundedRegion \$Button 7/);
   assert.match(source, /BorderStyle = \[Windows\.Forms\.BorderStyle\]::FixedSingle/);
   assert.doesNotMatch(source, /DropShadow|WebFont|CssCustomProperty/);
+});
+
+test("Relay button colors distinguish enabled actions from disabled controls", () => {
+  const source = readFileSync(sourcePath, "utf8");
+  assert.match(source, /\$disabledButtonBackground = \[Drawing\.Color\]::FromArgb\(0xe6, 0xe6, 0xe6\)/);
+  assert.match(source, /if \(-not \$Button\.Enabled\)[\s\S]*?\$Button\.BackColor = \$disabledButtonBackground/);
+  assert.match(source, /if \(\$Primary\)[\s\S]*?\$Button\.BackColor = \$buttonPrimaryBlue/);
+  assert.match(source, /Set-ButtonVisualState \$startButton \$true/);
+  assert.match(source, /Set-ButtonVisualState \$shareStartButton \$true/);
+  assert.match(source, /Set-ButtonVisualState \$applyButton \$true/);
+  assert.match(source, /Update-RelayButtonVisualStates[\s\S]*?return/);
 });
 
 test("Relay probe returns before mutex, audit, UI, or child process creation", () => {
