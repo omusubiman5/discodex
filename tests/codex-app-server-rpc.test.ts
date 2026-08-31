@@ -245,7 +245,7 @@ test("Desktop fresh-connect reset closes one inactive GPT Live overlay", async (
   transport.close();
 });
 
-test("Desktop fresh-connect reset uses the unique overlay stop control when the exact stop RPC leaves UI active", async () => {
+test("Desktop fresh-connect reset stops the unique active overlay without using a stale task-scoped RPC", async () => {
   const main = new FakeCdpSocket(false);
   const overlay = new FakeCdpSocket(true, true, true, false);
   const targets = () => [
@@ -261,9 +261,22 @@ test("Desktop fresh-connect reset uses the unique overlay stop control when the 
   });
   await transport.connect();
   await transport.resetForegroundRealtimeVoice(3_000);
-  assert.equal(main.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), true);
+  assert.equal(main.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), false);
   assert.equal(overlay.sent.some((command) => JSON.stringify(command).includes("voice-reset-clicked")), true);
   assert.equal(overlay.sent.some((command) => JSON.stringify(command).includes("window.close()")), true);
+  transport.close();
+});
+
+test("Desktop fresh-connect reset rejects an unverified main-renderer Voice task", async () => {
+  const main = new FakeCdpSocket(true, true, false);
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => [{ type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" }],
+    socketFactory: () => main,
+  });
+  await transport.connect();
+  await assert.rejects(() => transport.resetForegroundRealtimeVoice(3_000), /active Codex Voice task could not be verified/);
+  assert.equal(main.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), false);
   transport.close();
 });
 

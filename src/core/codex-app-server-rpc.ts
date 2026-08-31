@@ -663,31 +663,40 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
     throw new Error("Codex native Voice Talk did not become active before the bounded timeout.");
   }
 
-  /** Stops the exact task's prior GPT Live call and removes its inactive overlay before a fresh connect. */
+  /** Stops the currently active GPT Live call and removes its inactive overlay before a fresh connect. */
   async resetForegroundRealtimeVoice(timeoutMs = 12_000): Promise<void> {
     if (!this.#connected) throw new Error("Codex Desktop transport is not connected.");
     await this.detachExistingRealtimeOutput().catch(() => undefined);
-    if (await this.isForegroundRealtimeVoiceActive()) {
+    const deadline = Date.now() + timeoutMs;
+    const initialOverlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
+    if (initialOverlays.length > 1) throw new Error("Multiple Codex Desktop voice overlays were found before reconnect.");
+    const activeOverlay = initialOverlays.length === 1
+      && await evaluateBooleanOnTarget(initialOverlays[0]!, this.#socketFactory);
+
+    // The avatar overlay is the UI owner of the currently audible Voice
+    // session. Stop that unique live owner directly instead of first sending
+    // thread/realtime/stop to a task ID persisted by an older Relay run. A
+    // stale configured ID can legitimately differ from the task that owns the
+    // current overlay; using it first leaves the real call alive and prevents
+    // /connect from clearing the previous session.
+    if (activeOverlay) {
+      await stopActiveVoiceOverlayTarget(initialOverlays[0]!, this.#socketFactory);
+    } else if (await this.#evaluate(ACTIVE_VOICE_EXPRESSION) === true) {
+      // A call rendered entirely in the main task has no independent overlay
+      // to identify it. Only the already app-server-verified active task may
+      // be stopped through the task-scoped RPC.
+      if (!this.#activeThreadVerifiedOnConnect) {
+        throw new Error("The active Codex Voice task could not be verified before reconnect.");
+      }
       await this.request("thread/realtime/stop", { threadId: this.#threadId });
-      const deadline = Date.now() + timeoutMs;
-      const rpcGraceDeadline = Math.min(deadline, Date.now() + 1_500);
-      while (Date.now() < rpcGraceDeadline) {
-        if (!(await this.isForegroundRealtimeVoiceActive())) break;
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      if (await this.isForegroundRealtimeVoiceActive()) {
-        const activeOverlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
-        if (activeOverlays.length !== 1 || !(await evaluateBooleanOnTarget(activeOverlays[0]!, this.#socketFactory))) {
-          throw new Error("The exact previous Codex GPT Live overlay could not be identified before reconnect.");
-        }
-        await stopActiveVoiceOverlayTarget(activeOverlays[0]!, this.#socketFactory);
-        while (Date.now() < deadline) {
-          if (!(await this.isForegroundRealtimeVoiceActive())) break;
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      }
-      if (await this.isForegroundRealtimeVoiceActive()) throw new Error("The previous Codex GPT Live call did not stop before reconnect.");
     }
+
+    while (Date.now() < deadline) {
+      if (!(await this.isForegroundRealtimeVoiceActive())) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (await this.isForegroundRealtimeVoiceActive()) throw new Error("The previous Codex GPT Live call did not stop before reconnect.");
+
     const overlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
     if (overlays.length > 1) throw new Error("Multiple Codex Desktop voice overlays remained before reconnect.");
     if (overlays.length === 1) {
