@@ -30,51 +30,13 @@ if (-not (Test-Path -LiteralPath $taskFile -PathType Leaf)) { throw 'The fixed C
 $threadId = (Get-Content -Raw -LiteralPath $taskFile).Trim()
 if ($threadId -notmatch '^[0-9a-f-]{20,}$') { throw 'The fixed Codex task configuration is invalid.' }
 
-$startupMutex = [Threading.Mutex]::new($false, 'Local\DiscodexRelayApplicationStartup')
-if (-not $startupMutex.WaitOne(10000)) {
-  $startupMutex.Dispose()
-  throw 'Discodex Relay startup ownership could not be acquired.'
-}
-
-try {
-  # A newly launched Relay replaces only an older GUI process running this
-  # exact repository script. The current PID is excluded explicitly so the
-  # replacement can never terminate itself.
-  $relayScriptPath = [IO.Path]::GetFullPath($PSCommandPath)
-  $relayFilePattern = '(?i)(?:^|\s)-File\s+(?:"' + [regex]::Escape($relayScriptPath) + '"|' + [regex]::Escape($relayScriptPath) + ')(?:\s|$)'
-  $staleRelayProcesses = @(
-    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-      Where-Object {
-        $_.ProcessId -ne $PID -and
-        $_.Name -in @('powershell.exe', 'pwsh.exe') -and
-        [string]$_.CommandLine -match $relayFilePattern
-      }
-  )
-  foreach ($staleRelayProcess in $staleRelayProcesses) {
-    Stop-Process -Id $staleRelayProcess.ProcessId -Force -ErrorAction Stop
-  }
-  foreach ($staleRelayProcess in $staleRelayProcesses) {
-    Wait-Process -Id $staleRelayProcess.ProcessId -Timeout 5 -ErrorAction SilentlyContinue
-  }
-  $remainingRelayProcesses = @(
-    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-      Where-Object {
-        $_.ProcessId -ne $PID -and
-        $_.Name -in @('powershell.exe', 'pwsh.exe') -and
-        [string]$_.CommandLine -match $relayFilePattern
-      }
-  )
-  if ($remainingRelayProcesses.Count -ne 0) { throw 'The previous Discodex Relay process did not stop.' }
-
-  $mutex = [Threading.Mutex]::new($false, 'Local\DiscodexRelayApplication')
-  if (-not $mutex.WaitOne(5000)) {
-    $mutex.Dispose()
-    throw 'Discodex Relay application ownership could not be acquired.'
-  }
-}
-finally {
-  try { $startupMutex.ReleaseMutex() } catch {}
-  $startupMutex.Dispose()
+$createdNew = $false
+$mutex = [Threading.Mutex]::new($true, 'Local\DiscodexRelayApplication', [ref]$createdNew)
+if (-not $createdNew) {
+  # The first Relay remains the sole owner. A later launch never reaches UI,
+  # control startup, cleanup, or process termination.
+  $mutex.Dispose()
+  return
 }
 
 Add-Type -AssemblyName System.Windows.Forms
