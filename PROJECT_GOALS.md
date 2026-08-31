@@ -2,7 +2,7 @@
 
 ## Discord Voice entry {#discord-voice-entry}
 
-The primary user journey is: a user joins a private Discord voice channel from a phone, speaks to the bridge running on a Windows or macOS workstation, and receives the Codex Voice response through Discord. Google Meet remains only a future transport adapter candidate.
+The primary user journey is: a user joins a private Discord voice channel from a phone, speaks to the bridge running on a Windows or macOS workstation, and receives the Codex Voice response through Discord.
 
 ```project-goal
 {"goal_id":"codex-discord-voice-entry","project_id":"codex-discord-voice-bridge","objective":"Private Discord voiceからWindows/macOS上のCodex Voiceへ安全な双方向音声入口を提供する","acceptance_conditions":["official libdaveのみを使う","credentialを会話・ログ・Gitへ露出しない","WindowsとmacOSでDAVE暗号化join/send/receiveを検証する","独立監査PASSを記録する"],"state":"in_progress","evidence":["git:a88e356","test:capi-9-of-9","test:node-native-load-session-pass","test:cycle0-metadata-remediation","test:native-addon-loader-pass"],"source_file":"PROJECT_GOALS.md","source_anchor":"discord-voice-entry"}
