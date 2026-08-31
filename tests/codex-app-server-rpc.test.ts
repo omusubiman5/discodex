@@ -47,13 +47,15 @@ class FakeCdpSocket {
   readonly #activeTaskVerified: boolean;
   readonly #rpcStopChangesVoice: boolean;
   readonly #resumeVisible: boolean;
+  readonly #nativeCommandActivates: boolean;
 
-  constructor(voiceActive = true, commandModuleAvailable = true, activeTaskVerified = true, rpcStopChangesVoice = true, resumeVisible = false) {
+  constructor(voiceActive = true, commandModuleAvailable = true, activeTaskVerified = true, rpcStopChangesVoice = true, resumeVisible = false, nativeCommandActivates = true) {
     this.#voiceActive = voiceActive;
     this.#commandModuleAvailable = commandModuleAvailable;
     this.#activeTaskVerified = activeTaskVerified;
     this.#rpcStopChangesVoice = rpcStopChangesVoice;
     this.#resumeVisible = resumeVisible;
+    this.#nativeCommandActivates = nativeCommandActivates;
   }
 
   addEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
@@ -68,23 +70,29 @@ class FakeCdpSocket {
     queueMicrotask(() => {
       const expression = command.params?.expression;
       const activeFallbackDenied = expression?.includes("activeTaskFallback") && expression.includes("&& false");
+      const exactTaskNavigation = expression?.includes("sidebarTargets[0].click()") && expression.includes("&& true");
       if (expression?.includes("thread/realtime/stop") && this.#rpcStopChangesVoice) this.#voiceActive = false;
       if (expression?.includes("voice-reset-clicked")) this.#voiceActive = false;
       if (expression?.includes("window.close()")) this.#voiceActive = false;
-      if (expression?.includes("composer.startVoiceMode") && this.#commandModuleAvailable && !activeFallbackDenied) this.#voiceActive = true;
+      if (expression?.includes("composer.startVoiceMode") && this.#commandModuleAvailable && this.#nativeCommandActivates && (!activeFallbackDenied || exactTaskNavigation)) this.#voiceActive = true;
+      if (expression?.includes("voice-start-clicked")) this.#voiceActive = true;
       if (command.method === "Input.dispatchKeyEvent" && command.params?.type === "rawKeyDown" && command.params.key === "V" && command.params.modifiers === 10) this.#voiceActive = true;
       const value = expression?.includes("voice-reset-clicked")
         ? { stopped: true, category: "voice-reset-clicked" }
+        : expression?.includes("voice-start-clicked")
+        ? { started: true, category: "voice-start-clicked" }
+        : expression?.includes("foregroundTaskId")
+        ? { foregroundTaskId: THREAD_ID }
         : expression?.includes("window.close()")
         ? { closed: true, category: "inactive-closed" }
         : expression?.includes("getDynamicConfig")
         ? { model: "gpt-live-1-codex", version: "v3", includeStartupContext: true }
-        : expression?.includes("composer.startVoiceMode") ? activeFallbackDenied
+        : expression?.includes("composer.startVoiceMode") ? activeFallbackDenied && !exactTaskNavigation
           ? { ok: false, category: "task-mismatch" }
           : this.#commandModuleAvailable ? { ok: true, category: "started" } : { ok: false, category: "command-module-unavailable" }
         : expression?.includes(".appendAudio(") ? { ok: true, category: "appended" }
         : expression?.includes("prepareRealtime()") ? "v=0\r\n" : true;
-      const evaluatedValue = expression?.includes("window.close()") || expression?.includes("voice-reset-clicked") ? value
+      const evaluatedValue = expression?.includes("window.close()") || expression?.includes("voice-reset-clicked") || expression?.includes("voice-start-clicked") ? value
         : expression?.includes("querySelectorAll(\"button,[role=button]\")")
           ? expression.includes("音声チャットを再開") && this.#resumeVisible ? false : this.#voiceActive
           : value;
@@ -102,7 +110,7 @@ class FakeCdpSocket {
     });
   }
 
-  close(): void { this.#dispatch("close", {}); }
+  close(): void {}
   emit(message: unknown): void { this.#dispatch("message", { data: JSON.stringify(message) }); }
   #dispatch(type: string, event: { data?: unknown }): void { for (const listener of this.#listeners.get(type) ?? []) listener(event); }
 }
@@ -215,6 +223,34 @@ test("Desktop Voice Talk activation uses the M18 native command and waits for ac
   transport.close();
 });
 
+test("Desktop resolves the foreground task only after app-server verification", async () => {
+  const socket = new FakeCdpSocket(false);
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => [{ type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" }],
+    socketFactory: () => socket,
+    verifyThreadOnConnect: false,
+  });
+  await transport.connect();
+  assert.equal(await transport.resolveForegroundTaskId(), THREAD_ID);
+  assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("foregroundTaskId")), true);
+  assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("thread/read")), true);
+  transport.close();
+});
+
+test("Desktop Voice Talk clicks the unique current UI start control when the handled command does not open Voice", async () => {
+  const socket = new FakeCdpSocket(false, true, true, true, false, false);
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => [{ type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" }],
+    socketFactory: () => socket,
+  });
+  await transport.connect();
+  assert.equal(await transport.ensureForegroundRealtimeVoiceActive(3_000), "started");
+  assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("voice-start-clicked")), true);
+  transport.close();
+});
+
 test("Desktop voice activity treats an explicit resume control as inactive despite a microphone mute control", async () => {
   const main = new FakeCdpSocket(false);
   const pausedOverlay = new FakeCdpSocket(true, true, true, true, true);
@@ -228,6 +264,7 @@ test("Desktop voice activity treats an explicit resume control as inactive despi
   });
   await transport.connect();
   assert.equal(await transport.isForegroundRealtimeVoiceActive(), false);
+  assert.equal(pausedOverlay.sent.some((command) => JSON.stringify(command).includes(":disabled")), true);
   transport.close();
 });
 
@@ -241,7 +278,8 @@ test("Desktop fresh-connect reset stops the exact GPT Live call before reconnect
   await transport.connect();
   await transport.resetForegroundRealtimeVoice();
   assert.equal(await transport.isForegroundRealtimeVoiceActive(), false);
-  assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), true);
+  assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("voice-reset-clicked")), true);
+  assert.equal(socket.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), false);
   transport.close();
 });
 
@@ -287,7 +325,7 @@ test("Desktop fresh-connect reset stops the unique active overlay without using 
   transport.close();
 });
 
-test("Desktop fresh-connect reset rejects an unverified main-renderer Voice task", async () => {
+test("Desktop fresh-connect reset stops the unique active main-renderer Voice task even when the prior task differs", async () => {
   const main = new FakeCdpSocket(true, true, false);
   const transport = new DesktopOwnedCodexAppServerTransport({
     threadId: THREAD_ID,
@@ -295,12 +333,13 @@ test("Desktop fresh-connect reset rejects an unverified main-renderer Voice task
     socketFactory: () => main,
   });
   await transport.connect();
-  await assert.rejects(() => transport.resetForegroundRealtimeVoice(3_000), /active Codex Voice task could not be verified/);
+  await transport.resetForegroundRealtimeVoice(3_000);
+  assert.equal(main.sent.some((command) => JSON.stringify(command).includes("voice-reset-clicked")), true);
   assert.equal(main.sent.some((command) => JSON.stringify(command).includes("thread/realtime/stop")), false);
   transport.close();
 });
 
-test("Desktop Voice Talk does not use the active-task fallback for an idle task", async () => {
+test("Desktop Voice Talk navigates to the exact verified idle task before starting", async () => {
   const socket = new FakeCdpSocket(false, true, false);
   const transport = new DesktopOwnedCodexAppServerTransport({
     threadId: THREAD_ID,
@@ -308,8 +347,9 @@ test("Desktop Voice Talk does not use the active-task fallback for an idle task"
     socketFactory: () => socket,
   });
   await transport.connect();
-  await assert.rejects(() => transport.ensureForegroundRealtimeVoiceActive(), /task-mismatch/);
-  assert.equal(socket.sent.some((command) => command.method === "Input.dispatchKeyEvent"), false);
+  assert.equal(await transport.ensureForegroundRealtimeVoiceActive(), "started");
+  const nativeCommand = socket.sent.find((command) => String((command as { params?: { expression?: string } }).params?.expression).includes("composer.startVoiceMode"));
+  assert.match(JSON.stringify(nativeCommand), /sidebarTargets\[0\]\.click/);
   transport.close();
 });
 

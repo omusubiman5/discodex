@@ -26,7 +26,7 @@ export interface PreviousBridgeSessionReset {
 
 interface PreviousBridgeSessionResetDependencies {
   readonly voiceLeave?: typeof runVoiceLeave;
-  readonly createTransport?: (options: { readonly threadId: string; readonly debuggerEndpoint: string }) => Pick<DesktopOwnedCodexAppServerTransport, "connect" | "resetForegroundRealtimeVoice" | "close">;
+  readonly createTransport?: (options: { readonly threadId: string; readonly debuggerEndpoint: string; readonly verifyThreadOnConnect?: boolean }) => Pick<DesktopOwnedCodexAppServerTransport, "connect" | "resolveForegroundTaskId" | "resetForegroundRealtimeVoice" | "close">;
 }
 
 const execFileAsync = promisify(execFile);
@@ -57,12 +57,24 @@ export function createPreviousBridgeSessionReset(
       if (!threadId || !/^[0-9a-f-]{20,}$/i.test(threadId) || !debuggerEndpoint) {
         throw new Error("The exact current Codex task route is not configured.");
       }
-      const transport = createTransport({ threadId, debuggerEndpoint });
+      const resolver = createTransport({ threadId, debuggerEndpoint, verifyThreadOnConnect: false });
+      let foregroundThreadId: string;
       try {
-        await transport.connect();
-        await transport.resetForegroundRealtimeVoice();
+        await resolver.connect();
+        foregroundThreadId = await resolver.resolveForegroundTaskId();
       } finally {
-        transport.close();
+        resolver.close();
+      }
+      // Every /connect follows the task currently shown in Codex Desktop.
+      // The fixed file is only a startup seed; stale runs must not keep the
+      // live bridge pinned to a historical task.
+      process.env.CODEX_THREAD_ID = foregroundThreadId;
+      const current = createTransport({ threadId: foregroundThreadId, debuggerEndpoint });
+      try {
+        await current.connect();
+        await current.resetForegroundRealtimeVoice();
+      } finally {
+        current.close();
       }
     },
   };

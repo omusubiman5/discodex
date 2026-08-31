@@ -13,7 +13,8 @@ test("previous-session reset uses the validated runtime voice target instead of 
   process.env.CODEX_THREAD_ID = "00000000-0000-0000-0000-000000000000";
   process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT = "http://127.0.0.1:52232";
   let leaveTarget: { guildId: string; channelId: string } | undefined;
-  let connected = 0; let reset = 0; let closed = 0;
+  let connected = 0; let resolved = 0; let reset = 0; let closed = 0;
+  const transportOptions: Array<{ threadId: string; verifyThreadOnConnect?: boolean }> = [];
   try {
     const barrier = createPreviousBridgeSessionReset(
       { guildId: "11111111111111111", voiceChannelId: "22222222222222222" },
@@ -22,18 +23,26 @@ test("previous-session reset uses the validated runtime voice target instead of 
           leaveTarget = options.target;
           return { phase: "voice-leave", state: "pass" };
         },
-        createTransport: () => ({
+        createTransport: (options) => {
+          transportOptions.push(options);
+          return {
           async connect() { connected += 1; },
+          async resolveForegroundTaskId() { resolved += 1; return "11111111-2222-3333-4444-555555555555"; },
           async resetForegroundRealtimeVoice() { reset += 1; },
           close() { closed += 1; },
-        }),
+          };
+        },
       },
     );
     await barrier.reset();
     assert.deepEqual(leaveTarget, { guildId: "11111111111111111", channelId: "22222222222222222" });
-    assert.equal(connected, 1);
+    assert.equal(connected, 2);
+    assert.equal(resolved, 1);
     assert.equal(reset, 1);
-    assert.equal(closed, 1);
+    assert.equal(closed, 2);
+    assert.equal(transportOptions[0]?.verifyThreadOnConnect, false);
+    assert.equal(transportOptions[1]?.threadId, "11111111-2222-3333-4444-555555555555");
+    assert.equal(process.env.CODEX_THREAD_ID, "11111111-2222-3333-4444-555555555555");
   } finally {
     if (previousThreadId === undefined) delete process.env.CODEX_THREAD_ID; else process.env.CODEX_THREAD_ID = previousThreadId;
     if (previousEndpoint === undefined) delete process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT; else process.env.CODEX_DESKTOP_DEBUGGER_ENDPOINT = previousEndpoint;

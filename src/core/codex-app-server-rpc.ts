@@ -60,10 +60,12 @@ const DESKTOP_RELAY = "__codexDiscordVoiceBridgeHost";
 const ACTIVE_VOICE_EXPRESSION = `(() => {
   const active = /(end|stop).*(voice|call)|(voice|call).*(end|stop)|音声チャットを終了|通話を終了|マイク.*ミュート/i;
   const resume = /resume.*(voice|call)|(voice|call).*resume|音声チャットを再開/i;
-  const labels = [...document.querySelectorAll("button,[role=button]")].map((element) => {
+  const labels = [...document.querySelectorAll("button,[role=button]")]
+    .filter((element) => !element.matches(":disabled") && element.getAttribute("aria-disabled") !== "true")
+    .map((element) => {
     const label = [element.getAttribute("aria-label"), element.getAttribute("title"), element.getAttribute("data-testid")].filter(Boolean).join(" ");
     return label;
-  });
+    });
   // A paused overlay still exposes its microphone mute control. The explicit
   // resume action is the authoritative state and must win over that stale
   // active-looking control.
@@ -71,9 +73,9 @@ const ACTIVE_VOICE_EXPRESSION = `(() => {
   return labels.some((label) => active.test(label));
 })()`;
 
-function startNativeVoiceExpression(threadId: string, verifiedActiveTask: boolean): string {
+function startNativeVoiceExpression(threadId: string, verifiedActiveTask: boolean, verifiedTask: boolean): string {
   return `(async () => {
-    const legacyThreadKey = document.querySelector('[data-above-composer-conversation-id]')
+    const resolveLegacyThreadKey = () => document.querySelector('[data-above-composer-conversation-id]')
       ?.getAttribute('data-above-composer-conversation-id')
       ?? document.querySelector('[data-app-action-sidebar-thread-id][data-app-action-sidebar-thread-active="true"]')
         ?.getAttribute('data-app-action-sidebar-thread-id')
@@ -106,8 +108,23 @@ function startNativeVoiceExpression(threadId: string, verifiedActiveTask: boolea
       }
       return ids.size === 1 ? [...ids][0] : undefined;
     };
-    const activeThreadKey = legacyThreadKey ?? resolveMainSessionThreadKey();
-    const domTaskMatched = activeThreadKey === ${JSON.stringify(threadId)};
+    let activeThreadKey = resolveLegacyThreadKey() ?? resolveMainSessionThreadKey();
+    let domTaskMatched = activeThreadKey === ${JSON.stringify(threadId)};
+    if (!domTaskMatched && ${JSON.stringify(verifiedTask)}) {
+      const sidebarTargets = [...document.querySelectorAll('[data-app-action-sidebar-thread-id]')]
+        .filter((element) => element.getAttribute('data-app-action-sidebar-thread-id') === ${JSON.stringify(threadId)});
+      if (sidebarTargets.length !== 1) return { ok: false, category: 'task-navigation-unavailable' };
+      sidebarTargets[0].click();
+      const navigationDeadline = Date.now() + 5_000;
+      while (Date.now() < navigationDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        activeThreadKey = resolveLegacyThreadKey() ?? resolveMainSessionThreadKey();
+        if (activeThreadKey === ${JSON.stringify(threadId)}) {
+          domTaskMatched = true;
+          break;
+        }
+      }
+    }
     const activeTaskFallback = activeThreadKey === undefined && ${JSON.stringify(verifiedActiveTask)};
     if (!domTaskMatched && !activeTaskFallback) return { ok: false, category: 'task-mismatch' };
     const urls = [...new Set([
@@ -124,6 +141,17 @@ function startNativeVoiceExpression(threadId: string, verifiedActiveTask: boolea
       : { ok: false, category: 'voice-command-inactive' };
   })()`;
 }
+
+const START_VOICE_BUTTON_EXPRESSION = `(() => {
+  const start = /start.*(voice|call)|(voice|call).*start|新しい音声チャットを開始|音声チャットを開始/i;
+  const controls = [...document.querySelectorAll("button,[role=button]")].filter((element) => {
+    const label = [element.getAttribute("aria-label"), element.getAttribute("title"), element.getAttribute("data-testid")].filter(Boolean).join(" ");
+    return start.test(label);
+  });
+  if (controls.length !== 1) return { started: false, category: controls.length === 0 ? "start-control-missing" : "start-control-ambiguous" };
+  controls[0].click();
+  return { started: true, category: "voice-start-clicked" };
+})()`;
 
 function isDesktopVoiceOverlay(target: CdpTarget): boolean {
   if (target.type !== "page" || !target.webSocketDebuggerUrl) return false;
@@ -261,6 +289,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
   #nextCdpId = 1;
   #nextRpcId = 1;
   #connected = false;
+  #threadVerifiedOnConnect = false;
   #activeThreadVerifiedOnConnect = false;
   readonly #executionContexts = new Set<number>();
   readonly #directExecutionContexts = new Set<number>();
@@ -456,6 +485,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
         this.close();
         throw new Error("Codex Desktop returned a different task identity.");
       }
+      this.#threadVerifiedOnConnect = result.thread.canAcceptDirectInput === true;
       this.#activeThreadVerifiedOnConnect = result.thread.status?.type === "active"
         && result.thread.canAcceptDirectInput === true;
     }
@@ -472,6 +502,33 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
     const overlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
     if (overlays.length > 1) throw new Error("Multiple Codex Desktop voice overlays were found.");
     return overlays.length === 1 && await evaluateBooleanOnTarget(overlays[0]!, this.#socketFactory);
+  }
+
+  /** Resolves and app-server verifies the task currently shown in the main Desktop renderer. */
+  async resolveForegroundTaskId(): Promise<string> {
+    if (!this.#connected) throw new Error("Codex Desktop transport is not connected.");
+    const resolved = await this.#evaluate(`(() => {
+      const candidates = [
+        document.querySelector('[data-above-composer-conversation-id]')?.getAttribute('data-above-composer-conversation-id'),
+        document.querySelector('[data-app-action-sidebar-thread-id][data-app-action-sidebar-thread-active="true"]')?.getAttribute('data-app-action-sidebar-thread-id'),
+        document.querySelector('[data-app-action-sidebar-thread-id][aria-current="page"]')?.getAttribute('data-app-action-sidebar-thread-id'),
+      ].filter((value) => typeof value === 'string' && /^[0-9a-f-]{20,}$/i.test(value));
+      const unique = [...new Set(candidates)];
+      return { foregroundTaskId: unique.length === 1 ? unique[0] : null };
+    })()`);
+    const foregroundTaskId = resolved && typeof resolved === "object"
+      ? (resolved as { foregroundTaskId?: unknown }).foregroundTaskId
+      : undefined;
+    if (typeof foregroundTaskId !== "string" || !/^[0-9a-f-]{20,}$/i.test(foregroundTaskId)) {
+      throw new Error("The current foreground Codex task identity is unavailable.");
+    }
+    const result = await this.request("thread/read", { threadId: foregroundTaskId, includeTurns: false }) as {
+      thread?: { id?: string; canAcceptDirectInput?: boolean };
+    };
+    if (result.thread?.id !== foregroundTaskId || result.thread.canAcceptDirectInput !== true) {
+      throw new Error("The current foreground Codex task identity could not be verified.");
+    }
+    return foregroundTaskId;
   }
 
   /**
@@ -641,7 +698,11 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
     if (inactiveOverlays.length === 1) {
       throw new Error("An inactive Codex voice overlay is still open.");
     }
-    const evaluated = await this.#evaluate(startNativeVoiceExpression(this.#threadId, this.#activeThreadVerifiedOnConnect), true);
+    const evaluated = await this.#evaluate(startNativeVoiceExpression(
+      this.#threadId,
+      this.#activeThreadVerifiedOnConnect,
+      this.#threadVerifiedOnConnect,
+    ), true);
     const result = evaluated && typeof evaluated === "object"
       ? evaluated as { ok?: unknown; category?: unknown }
       : undefined;
@@ -662,6 +723,18 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
       }
     }
     const deadline = Date.now() + timeoutMs;
+    const commandGraceDeadline = Math.min(deadline, Date.now() + 1_500);
+    while (Date.now() < commandGraceDeadline) {
+      if (await this.isForegroundRealtimeVoiceActive()) return "started";
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    const clicked = await this.#evaluate(START_VOICE_BUTTON_EXPRESSION) as { started?: unknown; category?: unknown } | undefined;
+    if (clicked?.started !== true) {
+      const category = typeof clicked?.category === "string" && /^[a-z-]+$/.test(clicked.category)
+        ? clicked.category
+        : "desktop-evaluate";
+      throw new Error(`Codex native Voice Talk fallback could not start [${category}].`);
+    }
     while (Date.now() < deadline) {
       if (await this.isForegroundRealtimeVoiceActive()) return "started";
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -674,7 +747,10 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
     if (!this.#connected) throw new Error("Codex Desktop transport is not connected.");
     await this.detachExistingRealtimeOutput().catch(() => undefined);
     const deadline = Date.now() + timeoutMs;
-    const initialOverlays = (await this.#targetResolver(this.#debuggerEndpoint)).filter(isDesktopVoiceOverlay);
+    const initialTargets = await this.#targetResolver(this.#debuggerEndpoint);
+    const mainTargets = initialTargets.filter((target) => target.type === "page" && target.url === "app://-/index.html" && target.webSocketDebuggerUrl);
+    if (mainTargets.length !== 1) throw new Error("The main Codex Desktop renderer could not be identified before reconnect.");
+    const initialOverlays = initialTargets.filter(isDesktopVoiceOverlay);
     if (initialOverlays.length > 1) throw new Error("Multiple Codex Desktop voice overlays were found before reconnect.");
     const activeOverlay = initialOverlays.length === 1
       && await evaluateBooleanOnTarget(initialOverlays[0]!, this.#socketFactory);
@@ -688,13 +764,12 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
     if (activeOverlay) {
       await stopActiveVoiceOverlayTarget(initialOverlays[0]!, this.#socketFactory);
     } else if (await this.#evaluate(ACTIVE_VOICE_EXPRESSION) === true) {
-      // A call rendered entirely in the main task has no independent overlay
-      // to identify it. Only the already app-server-verified active task may
-      // be stopped through the task-scoped RPC.
-      if (!this.#activeThreadVerifiedOnConnect) {
-        throw new Error("The active Codex Voice task could not be verified before reconnect.");
-      }
-      await this.request("thread/realtime/stop", { threadId: this.#threadId });
+      // Current Desktop builds may keep the live stop control in the verified
+      // main task while the avatar overlay is a control-free media window.
+      // This reset deliberately follows the unique active Voice owner rather
+      // than the task persisted by an older Relay run. After it is stopped,
+      // /connect resolves and starts Voice on the task currently in front.
+      await stopActiveVoiceOverlayTarget(mainTargets[0]!, this.#socketFactory);
     }
 
     while (Date.now() < deadline) {
@@ -775,6 +850,7 @@ export class DesktopOwnedCodexAppServerTransport implements CodexAppServerRpcTra
   close(): void {
     void this.detachExistingRealtimeOutput().catch(() => undefined);
     this.#connected = false;
+    this.#threadVerifiedOnConnect = false;
     this.#activeThreadVerifiedOnConnect = false;
     this.#listeners.clear();
     const socket = this.#socket;
