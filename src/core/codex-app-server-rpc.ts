@@ -59,10 +59,16 @@ const DESKTOP_BINDING = "__codexDiscordVoiceBridgeEmit";
 const DESKTOP_RELAY = "__codexDiscordVoiceBridgeHost";
 const ACTIVE_VOICE_EXPRESSION = `(() => {
   const active = /(end|stop).*(voice|call)|(voice|call).*(end|stop)|音声チャットを終了|通話を終了|マイク.*ミュート/i;
-  return [...document.querySelectorAll("button,[role=button]")].some((element) => {
+  const resume = /resume.*(voice|call)|(voice|call).*resume|音声チャットを再開/i;
+  const labels = [...document.querySelectorAll("button,[role=button]")].map((element) => {
     const label = [element.getAttribute("aria-label"), element.getAttribute("title"), element.getAttribute("data-testid")].filter(Boolean).join(" ");
-    return active.test(label);
+    return label;
   });
+  // A paused overlay still exposes its microphone mute control. The explicit
+  // resume action is the authoritative state and must win over that stale
+  // active-looking control.
+  if (labels.some((label) => resume.test(label))) return false;
+  return labels.some((label) => active.test(label));
 })()`;
 
 function startNativeVoiceExpression(threadId: string, verifiedActiveTask: boolean): string {

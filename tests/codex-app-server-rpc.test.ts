@@ -46,12 +46,14 @@ class FakeCdpSocket {
   readonly #commandModuleAvailable: boolean;
   readonly #activeTaskVerified: boolean;
   readonly #rpcStopChangesVoice: boolean;
+  readonly #resumeVisible: boolean;
 
-  constructor(voiceActive = true, commandModuleAvailable = true, activeTaskVerified = true, rpcStopChangesVoice = true) {
+  constructor(voiceActive = true, commandModuleAvailable = true, activeTaskVerified = true, rpcStopChangesVoice = true, resumeVisible = false) {
     this.#voiceActive = voiceActive;
     this.#commandModuleAvailable = commandModuleAvailable;
     this.#activeTaskVerified = activeTaskVerified;
     this.#rpcStopChangesVoice = rpcStopChangesVoice;
+    this.#resumeVisible = resumeVisible;
   }
 
   addEventListener(type: string, listener: (event: { data?: unknown }) => void): void {
@@ -83,7 +85,9 @@ class FakeCdpSocket {
         : expression?.includes(".appendAudio(") ? { ok: true, category: "appended" }
         : expression?.includes("prepareRealtime()") ? "v=0\r\n" : true;
       const evaluatedValue = expression?.includes("window.close()") || expression?.includes("voice-reset-clicked") ? value
-        : expression?.includes("querySelectorAll(\"button,[role=button]\")") ? this.#voiceActive : value;
+        : expression?.includes("querySelectorAll(\"button,[role=button]\")")
+          ? expression.includes("音声チャットを再開") && this.#resumeVisible ? false : this.#voiceActive
+          : value;
       this.emit({ id: command.id, result: command.method === "Runtime.evaluate" ? { result: { value: evaluatedValue } } : {} });
       const rpcId = expression?.match(/discord-voice-[0-9]+-[0-9]+/)?.[0];
       if (!rpcId) return;
@@ -208,6 +212,22 @@ test("Desktop Voice Talk activation uses the M18 native command and waits for ac
   assert.match(String((nativeCommand as { params?: { expression?: string } }).params?.expression), /&& true/);
   assert.match(JSON.stringify(nativeCommand), new RegExp(THREAD_ID));
   assert.match(JSON.stringify(nativeCommand), /discord_voice_bridge/);
+  transport.close();
+});
+
+test("Desktop voice activity treats an explicit resume control as inactive despite a microphone mute control", async () => {
+  const main = new FakeCdpSocket(false);
+  const pausedOverlay = new FakeCdpSocket(true, true, true, true, true);
+  const transport = new DesktopOwnedCodexAppServerTransport({
+    threadId: THREAD_ID,
+    targetResolver: async () => [
+      { type: "page", url: "app://-/index.html", webSocketDebuggerUrl: "ws://desktop/main" },
+      { type: "page", url: "app://-/index.html?initialRoute=%2Favatar-overlay", webSocketDebuggerUrl: "ws://desktop/voice" },
+    ],
+    socketFactory: (url) => url.endsWith("/voice") ? pausedOverlay : main,
+  });
+  await transport.connect();
+  assert.equal(await transport.isForegroundRealtimeVoiceActive(), false);
   transport.close();
 });
 
