@@ -35,6 +35,25 @@ test("macOS Relay manager owns bounded prepare, start, stop, and exact-task conf
   assert.doesNotMatch(manager, /SetDefaultAudio|sudo|launchctl/);
 });
 
+test("macOS Relay presents a safe first-time setup checklist before it enables launch", () => {
+  assert.match(swift, /struct RelaySetup/);
+  assert.match(swift, /let relay = !setup\.ready \? "SETUP NEEDED"/);
+  assert.match(swift, /latestSetup\?\.ready == true/);
+  assert.match(swift, /setupHint\.frame = NSRect\(x: 25, y: 327, width: 670, height: 64\)/);
+  assert.match(swift, /setupHint\.maximumNumberOfLines = 4/);
+  assert.match(swift, /config\/meetron-macos-live\.example\.json/);
+  assert.match(swift, /runtime\/meetron-macos-live\.json/);
+  assert.match(swift, /Login Keychain/);
+  assert.match(swift, /runtime\/discodex-relay\.thread-id/);
+  assert.match(swift, /48 kHz \/ 2 ch/);
+  assert.match(swift, /healthCheck \? \["status", "--skip-setup"\] : \["status"\]/);
+  assert.match(swift, /autoStart && setup\.ready && state\.controlCount == 0/);
+  assert.match(manager, /inspectMacosRelaySetup/);
+  assert.match(manager, /requireMacosRelaySetup/);
+  assert.match(manager, /includeSetup: !has\("--skip-setup"\)/);
+  assert.doesNotMatch(manager, /discordGuildId.*process\.stderr|discordVoiceChannelId.*process\.stderr/);
+});
+
 test("macOS Relay builder creates one signed app under dist", () => {
   assert.match(packageSource, /discodex-relay-macos/);
   assert.match(builder, /app_root="\$dist_root\/Discodex Relay\.app"/);
