@@ -20,15 +20,22 @@ foreach ($required in @($startScript, $stopScript, $statusScript, $gainScript, $
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "A fixed Discodex Relay prerequisite is missing." }
 }
 
+function Get-ConfiguredThreadId {
+  if (-not (Test-Path -LiteralPath $taskFile -PathType Leaf)) { return $null }
+  $candidate = (Get-Content -Raw -LiteralPath $taskFile).Trim()
+  if ($candidate -notmatch '^[0-9a-f-]{20,}$') { return $null }
+  return $candidate
+}
+
 if ($Probe) {
-  $configured = Test-Path -LiteralPath $taskFile -PathType Leaf
-  [pscustomobject]@{ ready = $configured; configurationRequired = -not $configured; mutation = $false; secretOutput = $false; identifierOutput = $false } | ConvertTo-Json -Compress
+  $probeOutput = & $windowsPowerShell '-NoProfile' '-NonInteractive' '-ExecutionPolicy' 'Bypass' '-File' $statusScript 2>$null
+  if ($LASTEXITCODE -ne 0 -or -not $probeOutput) { throw 'Relay setup inspection failed.' }
+  $snapshot = $probeOutput.Trim() | ConvertFrom-Json
+  [pscustomobject]@{ ready = $snapshot.setup.ready; configurationRequired = -not $snapshot.setup.ready; missing = $snapshot.setup.missing; mutation = $false; secretOutput = $false; identifierOutput = $false } | ConvertTo-Json -Compress
   return
 }
 
-if (-not (Test-Path -LiteralPath $taskFile -PathType Leaf)) { throw 'The fixed Codex task configuration is missing.' }
-$threadId = (Get-Content -Raw -LiteralPath $taskFile).Trim()
-if ($threadId -notmatch '^[0-9a-f-]{20,}$') { throw 'The fixed Codex task configuration is invalid.' }
+$script:threadId = Get-ConfiguredThreadId
 
 $createdNew = $false
 $mutex = [Threading.Mutex]::new($true, 'Local\DiscodexRelayApplication', [ref]$createdNew)
@@ -312,8 +319,9 @@ function Set-RelayButtonState {
     Update-RelayButtonVisualStates
     return
   }
-  $startButton.Text = if ($script:lastSnapshot.routePrepared) { 'Start Relay' } else { 'Prepare Codex' }
-  $startButton.Enabled = $script:lastSnapshot.controlCount -le 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent -and ((-not $script:lastSnapshot.routePrepared) -or $script:lastSnapshot.controlCount -eq 0)
+  $setupReady = $null -ne $script:lastSnapshot.setup -and $script:lastSnapshot.setup.ready
+  $startButton.Text = if (-not $setupReady) { 'Check Setup' } elseif ($script:lastSnapshot.routePrepared) { 'Start Relay' } else { 'Prepare Codex' }
+  $startButton.Enabled = if (-not $setupReady) { $true } else { $script:lastSnapshot.controlCount -le 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent -and ((-not $script:lastSnapshot.routePrepared) -or $script:lastSnapshot.controlCount -eq 0) }
   $stopButton.Enabled = $script:lastSnapshot.controlCount -eq 1 -and $script:lastSnapshot.runnerCount -eq 0 -and -not $script:lastSnapshot.lockPresent
   $shareStartButton.Enabled = $script:lastSnapshot.runnerCount -eq 1 -and $script:lastSnapshot.lockPresent
   Update-RelayButtonVisualStates
@@ -347,7 +355,8 @@ function Set-RelayBusy {
 function Update-RelayStatus {
   $snapshot = Get-RelaySnapshot
   $script:lastSnapshot = $snapshot
-  $relay = if ($snapshot.controlCount -eq 1) { 'ready' } elseif ($snapshot.controlCount -eq 0) { 'stopped' } else { 'invalid' }
+  $script:threadId = if ($snapshot.setup.ready) { Get-ConfiguredThreadId } else { $null }
+  $relay = if (-not $snapshot.setup.ready) { 'setup needed' } elseif ($snapshot.controlCount -eq 1) { 'ready' } elseif ($snapshot.controlCount -eq 0) { 'stopped' } else { 'invalid' }
   $voice = if ($snapshot.runnerCount -eq 1 -and $snapshot.lockPresent) { 'connected' } elseif ($snapshot.runnerCount -eq 0 -and -not $snapshot.lockPresent) { 'disconnected' } else { 'degraded' }
   $statusLabel.Text = $relay.ToUpperInvariant() + '  /  ' + $voice.ToUpperInvariant()
   $relayBadge.Text = 'RELAY ' + $relay.ToUpperInvariant()
@@ -369,6 +378,11 @@ function Start-RelayControlOperation {
   Set-RelayBusy $true
   try {
     $snapshot = Get-RelaySnapshot
+    if (-not $snapshot.setup.ready) {
+      Update-RelayStatus
+      return
+    }
+    if (-not $script:threadId) { throw 'Relay setup is incomplete. Refresh the setup check before starting.' }
     if (-not $snapshot.routePrepared) {
       $codexRunning = @(Get-CimInstance Win32_Process -Filter "Name='ChatGPT.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.ExecutablePath -match 'OpenAI\.Codex_' -and $_.CommandLine -notmatch '--type=' }).Count -eq 1
       if ($codexRunning) {
@@ -384,7 +398,7 @@ function Start-RelayControlOperation {
       $routeBadge.Text = 'CODEX ROUTE PREPARING'
       $routeBadge.BackColor = $orangeAccent
       Write-RelayAudit 'codex-route-preparing' ''
-      $arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Quote-RelayArgument $prepareCodexScript) + ' -ThreadId ' + (Quote-RelayArgument $threadId)
+      $arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Quote-RelayArgument $prepareCodexScript) + ' -ThreadId ' + (Quote-RelayArgument $script:threadId)
       if ($codexRunning) { $arguments += ' -RestartExisting' }
       $script:activeOperation = Start-RelayChild $windowsPowerShell $arguments 60000 $false
       $script:activeOperation | Add-Member -NotePropertyName Kind -NotePropertyValue 'Prepare Codex'
@@ -394,7 +408,7 @@ function Start-RelayControlOperation {
     $relayBadge.Text = 'RELAY STARTING'
     $relayBadge.BackColor = $orangeAccent
     Write-RelayAudit 'relay-control-starting' ''
-    $arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Quote-RelayArgument $startScript) + ' -ThreadId ' + (Quote-RelayArgument $threadId)
+    $arguments = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File ' + (Quote-RelayArgument $startScript) + ' -ThreadId ' + (Quote-RelayArgument $script:threadId)
     $script:activeOperation = Start-RelayChild $windowsPowerShell $arguments 30000 $false
     $script:activeOperation | Add-Member -NotePropertyName Kind -NotePropertyValue 'Start Relay'
   }

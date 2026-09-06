@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inspectMacosRelaySetup, isDiscordIdentifier, requireMacosRelaySetup } from "../src/adapters/macos/relay-setup.mjs";
+import { inspectRelaySetup, isCodexTaskIdentifier, isDiscordIdentifier, requireRelaySetup } from "../src/core/relay-setup.mjs";
 
 const runtimeConfigFile = "/synthetic/runtime/meetron-macos-live.json";
 const taskFile = "/synthetic/runtime/discodex-relay.thread-id";
@@ -12,19 +12,21 @@ function inspect({ files = {}, keychain = true, blackHole = true, keychainError,
     if (value instanceof Error) throw value;
     return value;
   };
-  return inspectMacosRelaySetup({
+  return inspectRelaySetup({
     runtimeConfigFile,
     taskFile,
     exists: (path) => Object.hasOwn(files, path),
     readFile,
-    keychainTokenConfigured: () => {
+    credentialConfigured: () => {
       if (keychainError) throw keychainError;
       return keychain;
     },
-    blackHoleDetected: () => {
+    audioDeviceConfigured: () => {
       if (blackHoleError) throw blackHoleError;
       return blackHole;
     },
+    audioDeviceMissingCode: "blackhole-device",
+    audioFormatVerificationRequired: true,
   });
 }
 
@@ -44,6 +46,14 @@ test("Discord IDs accept the inclusive 16 and 22 digit boundaries only", () => {
   assert.equal(isDiscordIdentifier(undefined), false);
 });
 
+test("Codex task IDs accept only the fixed non-secret task identifier format", () => {
+  assert.equal(isCodexTaskIdentifier("a".repeat(20)), true);
+  assert.equal(isCodexTaskIdentifier("A".repeat(20)), true);
+  assert.equal(isCodexTaskIdentifier("a".repeat(19)), false);
+  assert.equal(isCodexTaskIdentifier("g".repeat(20)), false);
+  assert.equal(isCodexTaskIdentifier(undefined), false);
+});
+
 test("a fully configured Relay is ready without returning credentials or identifiers", () => {
   const setup = inspect({ files: validFiles() });
   assert.deepEqual(setup, { ready: true, missing: [], audioFormatVerificationRequired: true });
@@ -58,6 +68,30 @@ test("missing initial setup requirements are individually reported with safe cod
     missing: ["runtime-config", "discord-token", "codex-task", "blackhole-device"],
     audioFormatVerificationRequired: true,
   });
+});
+
+test("the shared checker preserves OS-specific audio setup codes without exposing configuration", () => {
+  const setup = inspectRelaySetup({
+    runtimeConfigFile,
+    taskFile,
+    exists: () => false,
+    readFile: () => { throw new Error("must not read"); },
+    credentialConfigured: false,
+    audioDeviceConfigured: false,
+    audioDeviceMissingCode: "vb-cable-device",
+  });
+  assert.deepEqual(setup, {
+    ready: false,
+    missing: ["runtime-config", "discord-token", "codex-task", "vb-cable-device"],
+    audioFormatVerificationRequired: false,
+  });
+  assert.throws(() => inspectRelaySetup({
+    runtimeConfigFile,
+    taskFile,
+    credentialConfigured: false,
+    audioDeviceConfigured: false,
+    audioDeviceMissingCode: "unsafe code",
+  }), { message: "Relay audio setup code is invalid." });
 });
 
 test("invalid runtime JSON or out-of-range Discord IDs blocks only the runtime target", () => {
@@ -103,14 +137,16 @@ test("required setup returns a safe generic error until every prerequisite is co
     keychainTokenConfigured: () => false,
     blackHoleDetected: () => false,
   };
-  assert.throws(() => requireMacosRelaySetup(base), {
+  assert.throws(() => requireRelaySetup({ ...base, audioDeviceMissingCode: "blackhole-device" }), {
     message: "Relay setup is incomplete. Review the setup checklist in Discodex Relay.",
   });
-  assert.deepEqual(requireMacosRelaySetup({
+  assert.deepEqual(requireRelaySetup({
     ...base,
     exists: (path) => path === runtimeConfigFile || path === taskFile,
     readFile: (path) => path === runtimeConfigFile ? validFiles()[runtimeConfigFile] : validFiles()[taskFile],
-    keychainTokenConfigured: () => true,
-    blackHoleDetected: () => true,
+    credentialConfigured: () => true,
+    audioDeviceConfigured: () => true,
+    audioDeviceMissingCode: "blackhole-device",
+    audioFormatVerificationRequired: true,
   }), { ready: true, missing: [], audioFormatVerificationRequired: true });
 });

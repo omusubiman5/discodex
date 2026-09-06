@@ -39,8 +39,12 @@ test("macOS Relay presents a safe first-time setup checklist before it enables l
   assert.match(swift, /struct RelaySetup/);
   assert.match(swift, /let relay = !setup\.ready \? "SETUP NEEDED"/);
   assert.match(swift, /latestSetup\?\.ready == true/);
-  assert.match(swift, /setupHint\.frame = NSRect\(x: 25, y: 327, width: 670, height: 64\)/);
-  assert.match(swift, /setupHint\.maximumNumberOfLines = 4/);
+  assert.match(swift, /setupHeading\.stringValue = "Complete these setup items before starting Relay"/);
+  assert.match(swift, /setupHint\.frame = NSRect\(x: 25, y: 338, width: 670, height: 72\)/);
+  assert.match(swift, /setupHint\.maximumNumberOfLines = 5/);
+  assert.match(swift, /Next: complete the items above, then click Check Setup\./);
+  assert.match(swift, /primary\.title = setup\.ready \? \(state\.routePrepared \? "Start Relay" : "Prepare Codex"\) : "Check Setup"/);
+  assert.match(swift, /guard latestSetup\?\.ready == true else \{ refreshState\(\); return \}/);
   assert.match(swift, /config\/meetron-macos-live\.example\.json/);
   assert.match(swift, /runtime\/meetron-macos-live\.json/);
   assert.match(swift, /Login Keychain/);
@@ -48,8 +52,8 @@ test("macOS Relay presents a safe first-time setup checklist before it enables l
   assert.match(swift, /48 kHz \/ 2 ch/);
   assert.match(swift, /healthCheck \? \["status", "--skip-setup"\] : \["status"\]/);
   assert.match(swift, /autoStart && setup\.ready && state\.controlCount == 0/);
-  assert.match(manager, /inspectMacosRelaySetup/);
-  assert.match(manager, /requireMacosRelaySetup/);
+  assert.match(manager, /inspectRelaySetup/);
+  assert.match(manager, /requireSharedRelaySetup/);
   assert.match(manager, /includeSetup: !has\("--skip-setup"\)/);
   assert.doesNotMatch(manager, /discordGuildId.*process\.stderr|discordVoiceChannelId.*process\.stderr/);
 });

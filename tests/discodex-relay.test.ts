@@ -7,6 +7,7 @@ import test from "node:test";
 import { TEST_DISCORD_ID_5, TEST_DISCORD_ID_10 } from "./fixtures/public-identities.mjs";
 
 const sourcePath = resolve("scripts/run-discodex-relay-app.ps1");
+const statusPath = resolve("scripts/get-discodex-relay-status.ps1");
 const buildPath = resolve("scripts/build-discodex-relay.ps1");
 const artifactPath = resolve("dist/Discodex Relay.lnk");
 
@@ -35,11 +36,23 @@ test("Relay app exposes only fixed relay, gain, and screen-share controls", () =
   assert.match(source, /CODEX ROUTE SETUP NEEDED/);
   assert.match(source, /Codex Desktop needs one Relay-managed restart/);
   assert.match(source, /Use \/disconnect in Discord before closing/);
+  assert.match(source, /\$snapshot\.setup\.ready/);
+  assert.match(source, /Check Setup/);
   assert.match(source, /SetThreadExecutionState/);
   assert.match(source, /ToUInt32\('80000001', 16\)/);
   assert.match(source, /ToUInt32\('80000000', 16\)/);
   assert.match(source, /System sleep blocked while Relay is open/);
   assert.doesNotMatch(source, /ScheduledTask|Registry|discodex:\/\/|cmd\.exe|run-meetron-windows-live/);
+});
+
+test("Windows Relay consumes the shared safe setup inspection before allowing launch", () => {
+  const status = readFileSync(statusPath, "utf8");
+  assert.match(status, /inspect-relay-setup\.mjs/);
+  assert.match(status, /meetron-windows-live\.json/);
+  assert.match(status, /codex-discord-voice-bridge\.bot-token\.dpapi/);
+  assert.match(status, /vb-cable-device/);
+  assert.match(status, /setup = \$setup/);
+  assert.doesNotMatch(status, /discordGuildId.*Write-Output|discordVoiceChannelId.*Write-Output/);
 });
 
 test("Relay app follows the supplied classical brown and blue design system", () => {
@@ -108,7 +121,8 @@ test("Relay supervises only command control with one recovery and never retries 
 test("Relay button state follows single-control and voice-lock ownership", () => {
   const source = readFileSync(sourcePath, "utf8");
   assert.match(source, /\$script:lastSnapshot = \$snapshot/);
-  assert.match(source, /\$startButton\.Enabled = \$script:lastSnapshot\.controlCount -le 1.*runnerCount -eq 0.*lockPresent/s);
+  assert.match(source, /\$setupReady = \$null -ne \$script:lastSnapshot\.setup -and \$script:lastSnapshot\.setup\.ready/);
+  assert.match(source, /\$startButton\.Enabled = if \(-not \$setupReady\) \{ \$true \} else \{ \$script:lastSnapshot\.controlCount -le 1.*runnerCount -eq 0.*lockPresent/s);
   assert.match(source, /\$stopButton\.Enabled = \$script:lastSnapshot\.controlCount -eq 1.*runnerCount -eq 0.*lockPresent/s);
 });
 
@@ -117,7 +131,7 @@ test("Relay owns Codex route preparation without exposing debugger settings to t
   const prepare = readFileSync(resolve("scripts/prepare-codex-desktop-for-discodex.ps1"), "utf8");
   const status = readFileSync(resolve("scripts/get-discodex-relay-status.ps1"), "utf8");
   assert.match(source, /if \(-not \$snapshot\.routePrepared\)/);
-  assert.match(source, /\$startButton\.Text = if \(\$script:lastSnapshot\.routePrepared\) \{ 'Start Relay' \} else \{ 'Prepare Codex' \}/);
+  assert.match(source, /\$startButton\.Text = if \(-not \$setupReady\) \{ 'Check Setup' \} elseif \(\$script:lastSnapshot\.routePrepared\) \{ 'Start Relay' \} else \{ 'Prepare Codex' \}/);
   assert.match(prepare, /--remote-debugging-address=127\.0\.0\.1/);
   assert.match(prepare, /--remote-debugging-port=\$debugPort/);
   assert.match(prepare, /\$roots = @\(Get-CodexRoots\)/);

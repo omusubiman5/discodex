@@ -3,7 +3,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:f
 import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { inspectMacosRelaySetup, requireMacosRelaySetup } from "../src/adapters/macos/relay-setup.mjs";
+import { inspectRelaySetup, requireRelaySetup as requireSharedRelaySetup } from "../src/core/relay-setup.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const runtimeRoot = resolve(repoRoot, "runtime");
@@ -79,20 +79,24 @@ function blackHoleDetected() {
 }
 
 function relaySetup() {
-  return inspectMacosRelaySetup({
+  return inspectRelaySetup({
     runtimeConfigFile,
     taskFile,
-    keychainTokenConfigured,
-    blackHoleDetected,
+    credentialConfigured: keychainTokenConfigured,
+    audioDeviceConfigured: blackHoleDetected,
+    audioDeviceMissingCode: "blackhole-device",
+    audioFormatVerificationRequired: true,
   });
 }
 
 function requireRelaySetup() {
-  return requireMacosRelaySetup({
+  return requireSharedRelaySetup({
     runtimeConfigFile,
     taskFile,
-    keychainTokenConfigured,
-    blackHoleDetected,
+    credentialConfigured: keychainTokenConfigured,
+    audioDeviceConfigured: blackHoleDetected,
+    audioDeviceMissingCode: "blackhole-device",
+    audioFormatVerificationRequired: true,
   });
 }
 
