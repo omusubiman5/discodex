@@ -40,6 +40,7 @@ test("macOS Relay presents a safe first-time setup checklist before it enables l
   assert.match(swift, /let relay = !setup\.ready \? "SETUP NEEDED"/);
   assert.match(swift, /latestSetup\?\.ready == true/);
   assert.match(swift, /setupHeading\.stringValue = "Complete these setup items before starting Relay"/);
+  assert.match(swift, /window\.appearance = NSAppearance\(named: \.aqua\)/);
   assert.match(swift, /setupHint\.frame = NSRect\(x: 25, y: 338, width: 670, height: 72\)/);
   assert.match(swift, /setupHint\.maximumNumberOfLines = 5/);
   assert.match(swift, /Next: complete the items above, then click Check Setup\./);

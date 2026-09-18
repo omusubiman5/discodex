@@ -83,6 +83,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
   private func buildWindow() {
     window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 700), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     window.title = "Discodex Relay"
+    window.appearance = NSAppearance(named: .aqua)
     window.center()
     window.delegate = self
     let root = NSView(frame: window.contentView!.bounds)
