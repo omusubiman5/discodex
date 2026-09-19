@@ -37,6 +37,28 @@ function validFiles({ guildId = "1".repeat(16), voiceChannelId = "9".repeat(22),
   };
 }
 
+test("setup can be rechecked after each correction without retaining stale readiness", () => {
+  // Self-verification of the shared Mac setup logic, not AppKit or Keychain UI.
+  const files = {};
+  const options = { files, keychain: false, blackHole: false };
+  assert.deepEqual(inspect(options).missing, ["runtime-config", "discord-token", "codex-task", "blackhole-device"]);
+  files[runtimeConfigFile] = "invalid-json";
+  assert.equal(inspect(options).ready, false);
+  files[runtimeConfigFile] = validFiles()[runtimeConfigFile];
+  assert.deepEqual(inspect(options).missing, ["discord-token", "codex-task", "blackhole-device"]);
+  options.keychain = true;
+  assert.deepEqual(inspect(options).missing, ["codex-task", "blackhole-device"]);
+  files[taskFile] = "invalid-task";
+  assert.deepEqual(inspect(options).missing, ["codex-task", "blackhole-device"]);
+  files[taskFile] = validFiles()[taskFile];
+  assert.deepEqual(inspect(options).missing, ["blackhole-device"]);
+  options.blackHole = true;
+  assert.equal(inspect(options).ready, true);
+  delete files[runtimeConfigFile];
+  assert.equal(inspect(options).ready, false);
+  assert.deepEqual(inspect(options).missing, ["runtime-config"]);
+});
+
 test("Discord IDs accept the inclusive 16 and 22 digit boundaries only", () => {
   assert.equal(isDiscordIdentifier("1".repeat(16)), true);
   assert.equal(isDiscordIdentifier("9".repeat(22)), true);

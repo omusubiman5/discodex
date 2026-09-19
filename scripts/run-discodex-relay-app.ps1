@@ -380,6 +380,7 @@ function Start-RelayControlOperation {
     $snapshot = Get-RelaySnapshot
     if (-not $snapshot.setup.ready) {
       Update-RelayStatus
+      Set-RelayBusy $false
       return
     }
     if (-not $script:threadId) { throw 'Relay setup is incomplete. Refresh the setup check before starting.' }
