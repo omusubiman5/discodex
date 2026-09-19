@@ -216,6 +216,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
         }
       } catch {
         self.setBusy(false); self.status.stringValue = "CONTROL ERROR  /  DISCONNECTED"
+        self.updateStatusAccessibility()
         if !healthCheck { self.showError(error.localizedDescription) }
       }
     }
@@ -243,8 +244,12 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     updateSetupAccessibility(isReady: false)
   }
 
-  private func updateSetupAccessibility(isReady: Bool) {
+  private func updateStatusAccessibility() {
     status.setAccessibilityLabel("Relay state: \(status.stringValue)")
+  }
+
+  private func updateSetupAccessibility(isReady: Bool) {
+    updateStatusAccessibility()
     setupHeading.setAccessibilityLabel("Relay setup status: \(setupHeading.stringValue)")
     setupHint.setAccessibilityLabel(isReady ? "Relay setup guidance: \(setupHint.stringValue)" : "Relay cannot start until these requirements are complete: \(setupHint.stringValue)")
     setupNextAction.setAccessibilityLabel(setupNextAction.stringValue)
@@ -262,6 +267,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
       guard alert.runModal() == .alertFirstButtonReturn else { return }
     }
     setBusy(true); status.stringValue = state.routePrepared ? "STARTING" : "PREPARING CODEX"
+    updateStatusAccessibility()
     run([state.routePrepared ? "start" : "prepare", "--restart-existing"]) { result in
       if case .failure(let error) = result { self.showError(error.localizedDescription) }
       else { self.ownsControl = true; self.controlHealthySince = Date(); self.startHealthMonitoring() }
