@@ -15,7 +15,10 @@ test("macOS Relay exposes the same launch and control workflow as Windows", () =
   assert.match(swift, /Start Screen Share/);
   assert.match(swift, /Use \/disconnect in Discord before closing/);
   assert.match(swift, /refreshState\(autoStart: true\)/);
-  assert.match(swift, /Timer\.scheduledTimer\(withTimeInterval: 2/);
+  assert.match(swift, /private func startHealthMonitoring\(\)/);
+  assert.match(swift, /guard let self, self\.ownsControl, !self\.busy, !self\.closingAfterStop else \{ return \}/);
+  assert.match(swift, /private func stopHealthMonitoring\(\)/);
+  assert.match(swift, /self\.ownsControl = false; self\.stopHealthMonitoring\(\)/);
   assert.match(swift, /controlRecoveryUsed/);
   assert.match(swift, /runnerCount == 0 && !state\.lockPresent/);
   assert.match(swift, /beginActivity\(options: \[\.idleSystemSleepDisabled\]/);
@@ -53,6 +56,13 @@ test("macOS Relay presents a safe first-time setup checklist before it enables l
   assert.match(swift, /48 kHz \/ 2 ch/);
   assert.match(swift, /healthCheck \? \["status", "--skip-setup"\] : \["status"\]/);
   assert.match(swift, /autoStart && setup\.ready && state\.controlCount == 0/);
+  assert.match(swift, /private func updateSetupAccessibility\(isReady: Bool\)/);
+  assert.ok(swift.includes("Relay state: \\(status.stringValue)"));
+  assert.ok(swift.includes("Relay setup status: \\(setupHeading.stringValue)"));
+  assert.match(swift, /Relay cannot start until these requirements are complete:/);
+  assert.match(swift, /Checks the Relay setup again\. Relay cannot start until every requirement is complete\./);
+  assert.match(swift, /Refresh Relay status/);
+  assert.match(swift, /without starting Relay/);
   assert.match(manager, /inspectRelaySetup/);
   assert.match(manager, /requireSharedRelaySetup/);
   assert.match(manager, /includeSetup: !has\("--skip-setup"\)/);

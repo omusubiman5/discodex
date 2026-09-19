@@ -74,10 +74,6 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
     loadGainThenRefresh()
-    healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-      guard let self, !self.busy, !self.closingAfterStop else { return }
-      self.refreshState(healthCheck: true)
-    }
   }
 
   private func buildWindow() {
@@ -173,6 +169,19 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     }
   }
 
+  private func startHealthMonitoring() {
+    guard healthTimer == nil else { return }
+    healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+      guard let self, self.ownsControl, !self.busy, !self.closingAfterStop else { return }
+      self.refreshState(healthCheck: true)
+    }
+  }
+
+  private func stopHealthMonitoring() {
+    healthTimer?.invalidate()
+    healthTimer = nil
+  }
+
   private func refreshState(autoStart: Bool = false, healthCheck: Bool = false) {
     setBusy(true)
     run(healthCheck ? ["status", "--skip-setup"] : ["status"]) { result in
@@ -192,7 +201,10 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
         if state.controlCount == 1 {
           if self.controlHealthySince == nil { self.controlHealthySince = Date() }
           if Date().timeIntervalSince(self.controlHealthySince!) >= 60 { self.controlRecoveryUsed = false }
-          if autoStart { self.ownsControl = true }
+          if autoStart || self.ownsControl {
+            self.ownsControl = true
+            self.startHealthMonitoring()
+          }
         } else {
           self.controlHealthySince = nil
         }
@@ -215,6 +227,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
       setupHint.stringValue = "Relay setup verified. Confirm BlackHole 2ch is set to 48 kHz / 2 ch in Audio MIDI Setup before connecting."
       setupHint.textColor = .secondaryLabelColor
       setupNextAction.stringValue = "Next: prepare Codex or start Relay."
+      updateSetupAccessibility(isReady: true)
       return
     }
     var steps: [String] = []
@@ -227,6 +240,18 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     setupHint.textColor = .systemOrange
     setupHeading.stringValue = "Complete these setup items before starting Relay"
     setupNextAction.stringValue = "Next: complete the items above, then click Check Setup."
+    updateSetupAccessibility(isReady: false)
+  }
+
+  private func updateSetupAccessibility(isReady: Bool) {
+    status.setAccessibilityLabel("Relay state: \(status.stringValue)")
+    setupHeading.setAccessibilityLabel("Relay setup status: \(setupHeading.stringValue)")
+    setupHint.setAccessibilityLabel(isReady ? "Relay setup guidance: \(setupHint.stringValue)" : "Relay cannot start until these requirements are complete: \(setupHint.stringValue)")
+    setupNextAction.setAccessibilityLabel(setupNextAction.stringValue)
+    primary.setAccessibilityLabel(primary.title)
+    primary.setAccessibilityHelp(isReady ? "Continues with the next safe Relay action." : "Checks the Relay setup again. Relay cannot start until every requirement is complete.")
+    refresh.setAccessibilityLabel("Refresh Relay status")
+    refresh.setAccessibilityHelp("Checks the current Relay state and setup requirements without starting Relay.")
   }
 
   private func startPrimary() {
@@ -239,7 +264,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     setBusy(true); status.stringValue = state.routePrepared ? "STARTING" : "PREPARING CODEX"
     run([state.routePrepared ? "start" : "prepare", "--restart-existing"]) { result in
       if case .failure(let error) = result { self.showError(error.localizedDescription) }
-      else { self.ownsControl = true; self.controlHealthySince = Date() }
+      else { self.ownsControl = true; self.controlHealthySince = Date(); self.startHealthMonitoring() }
       self.refreshState()
     }
   }
@@ -249,7 +274,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     guard latestSetup?.ready == true else { refreshState(); return }
     startPrimary()
   }
-  @objc private func stopPressed() { setBusy(true); run(["stop"]) { result in if case .failure(let error) = result { self.showError(error.localizedDescription) } else { self.ownsControl = false }; self.refreshState() } }
+  @objc private func stopPressed() { setBusy(true); run(["stop"]) { result in if case .failure(let error) = result { self.showError(error.localizedDescription) } else { self.ownsControl = false; self.stopHealthMonitoring() }; self.refreshState() } }
   @objc private func refreshPressed() { refreshState() }
   @objc private func gainChanged() { gainLabel.stringValue = "GPT Live → Discord output volume: \(Int((gain.doubleValue * 100).rounded()))%" }
   @objc private func applyGainPressed() { setBusy(true); run(["gain", String(format: "%.2f", gain.doubleValue)]) { result in if case .failure(let error) = result { self.showError(error.localizedDescription) }; self.refreshState() } }
@@ -270,7 +295,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    healthTimer?.invalidate()
+    stopHealthMonitoring()
     if let sleepActivity { ProcessInfo.processInfo.endActivity(sleepActivity); self.sleepActivity = nil }
   }
 }
