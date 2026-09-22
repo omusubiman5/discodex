@@ -18,6 +18,7 @@ on:
       - "tests/discodex-relay.test.ts"
       - "tests/macos-coreaudio-source.test.mjs"
       - "tests/macos-relay-app.test.mjs"
+      - "tests/macos-relay-state.test.mjs"
   pull_request:
     paths:
       - ".github/workflows/macos-relay.yml"
@@ -35,6 +36,7 @@ on:
       - "tests/discodex-relay.test.ts"
       - "tests/macos-coreaudio-source.test.mjs"
       - "tests/macos-relay-app.test.mjs"
+      - "tests/macos-relay-state.test.mjs"
 
 permissions:
   contents: read

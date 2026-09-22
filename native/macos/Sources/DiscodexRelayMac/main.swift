@@ -215,8 +215,14 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
           self.startPrimary()
         }
       } catch {
+        self.snapshot = nil
+        self.latestSetup = nil
+        self.primary.title = "Check Setup"
+        self.setupHeading.stringValue = "Relay status could not be checked"
+        self.setupHint.stringValue = "Click Refresh to check the current Relay state before continuing."
+        self.setupNextAction.stringValue = "Next: click Refresh to retry."
         self.setBusy(false); self.status.stringValue = "CONTROL ERROR  /  DISCONNECTED"
-        self.updateStatusAccessibility()
+        self.updateSetupAccessibility(isReady: false)
         if !healthCheck { self.showError(error.localizedDescription) }
       }
     }
