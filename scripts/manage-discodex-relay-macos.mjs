@@ -3,6 +3,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from "node:f
 import { spawn, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { inspectRelaySetup, requireRelaySetup as requireSharedRelaySetup } from "../src/core/relay-setup.mjs";
 
 const repoRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const runtimeRoot = resolve(repoRoot, "runtime");
@@ -10,6 +11,9 @@ const outputRoot = resolve(repoRoot, "outputs");
 const taskFile = resolve(runtimeRoot, "discodex-relay.thread-id");
 const lockFile = resolve(runtimeRoot, "live-call.lock");
 const endpoint = "http://127.0.0.1:9224";
+const runtimeConfigFile = resolve(runtimeRoot, "meetron-macos-live.json");
+const keychainService = "codex-discord-voice-bridge.bot-token";
+const keychainAccount = "discord-bot";
 const action = process.argv[2] || "status";
 const has = (flag) => process.argv.includes(flag);
 
@@ -57,6 +61,45 @@ function readLockOwner() {
   catch { return 0; }
 }
 
+function keychainTokenConfigured() {
+  try {
+    return run("/usr/bin/security", ["find-generic-password", "-s", keychainService, "-a", keychainAccount], { allowFailure: true }).status === 0;
+  } catch {
+    return false;
+  }
+}
+
+function blackHoleDetected() {
+  try {
+    const result = run("/usr/sbin/system_profiler", ["SPAudioDataType"], { allowFailure: true, timeout: 5_000 });
+    return result.status === 0 && result.stdout.includes("BlackHole 2ch");
+  } catch {
+    return false;
+  }
+}
+
+function relaySetup() {
+  return inspectRelaySetup({
+    runtimeConfigFile,
+    taskFile,
+    credentialConfigured: keychainTokenConfigured,
+    audioDeviceConfigured: blackHoleDetected,
+    audioDeviceMissingCode: "blackhole-device",
+    audioFormatVerificationRequired: true,
+  });
+}
+
+function requireRelaySetup() {
+  return requireSharedRelaySetup({
+    runtimeConfigFile,
+    taskFile,
+    credentialConfigured: keychainTokenConfigured,
+    audioDeviceConfigured: blackHoleDetected,
+    audioDeviceMissingCode: "blackhole-device",
+    audioFormatVerificationRequired: true,
+  });
+}
+
 async function routePrepared() {
   try {
     const response = await fetch(`${endpoint}/json/list`, { signal: AbortSignal.timeout(2_000) });
@@ -66,7 +109,7 @@ async function routePrepared() {
   } catch { return false; }
 }
 
-async function snapshot() {
+async function snapshot({ includeSetup = true } = {}) {
   const controls = controlProcesses();
   const lockOwner = readLockOwner();
   const lockPresent = lockOwner !== null;
@@ -77,6 +120,7 @@ async function snapshot() {
     lockPresent,
     routePrepared: await routePrepared(),
     healthy: controls.length <= 1 && runnerCount <= 1 && ((runnerCount === 1) === lockPresent),
+    ...(includeSetup ? { setup: relaySetup() } : {}),
   };
 }
 
@@ -92,6 +136,7 @@ function sleep(milliseconds) {
 }
 
 async function startControl() {
+  requireRelaySetup();
   exactTaskId();
   const before = await snapshot();
   if (before.controlCount !== 0) throw new Error("Fail-closed: production control is already running.");
@@ -119,6 +164,7 @@ async function startControl() {
 }
 
 async function prepareCodex() {
+  requireRelaySetup();
   exactTaskId();
   const before = await snapshot();
   if (before.runnerCount !== 0 || before.lockPresent) throw new Error("Use /disconnect before preparing Codex Desktop.");
@@ -158,7 +204,7 @@ async function stopControl() {
 }
 
 try {
-  if (action === "status") output(await snapshot());
+  if (action === "status") output(await snapshot({ includeSetup: !has("--skip-setup") }));
   else if (action === "prepare") await prepareCodex();
   else if (action === "start") await startControl();
   else if (action === "stop") await stopControl();

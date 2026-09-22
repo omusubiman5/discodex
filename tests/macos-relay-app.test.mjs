@@ -15,7 +15,10 @@ test("macOS Relay exposes the same launch and control workflow as Windows", () =
   assert.match(swift, /Start Screen Share/);
   assert.match(swift, /Use \/disconnect in Discord before closing/);
   assert.match(swift, /refreshState\(autoStart: true\)/);
-  assert.match(swift, /Timer\.scheduledTimer\(withTimeInterval: 2/);
+  assert.match(swift, /private func startHealthMonitoring\(\)/);
+  assert.match(swift, /guard let self, self\.ownsControl, !self\.busy, !self\.closingAfterStop else \{ return \}/);
+  assert.match(swift, /private func stopHealthMonitoring\(\)/);
+  assert.match(swift, /self\.ownsControl = false; self\.stopHealthMonitoring\(\)/);
   assert.match(swift, /controlRecoveryUsed/);
   assert.match(swift, /runnerCount == 0 && !state\.lockPresent/);
   assert.match(swift, /beginActivity\(options: \[\.idleSystemSleepDisabled\]/);
@@ -33,6 +36,37 @@ test("macOS Relay manager owns bounded prepare, start, stop, and exact-task conf
   assert.match(manager, /Use \/disconnect in Discord before stopping Relay/);
   assert.match(manager, /Date\.now\(\) \+ 30_000/);
   assert.doesNotMatch(manager, /SetDefaultAudio|sudo|launchctl/);
+});
+
+test("macOS Relay presents a safe first-time setup checklist before it enables launch", () => {
+  assert.match(swift, /struct RelaySetup/);
+  assert.match(swift, /let relay = !setup\.ready \? "SETUP NEEDED"/);
+  assert.match(swift, /latestSetup\?\.ready == true/);
+  assert.match(swift, /setupHeading\.stringValue = "Complete these setup items before starting Relay"/);
+  assert.match(swift, /window\.appearance = NSAppearance\(named: \.aqua\)/);
+  assert.match(swift, /setupHint\.frame = NSRect\(x: 25, y: 338, width: 670, height: 72\)/);
+  assert.match(swift, /setupHint\.maximumNumberOfLines = 5/);
+  assert.match(swift, /Next: complete the items above, then click Check Setup\./);
+  assert.match(swift, /primary\.title = setup\.ready \? \(state\.routePrepared \? "Start Relay" : "Prepare Codex"\) : "Check Setup"/);
+  assert.match(swift, /guard latestSetup\?\.ready == true else \{ refreshState\(\); return \}/);
+  assert.match(swift, /config\/meetron-macos-live\.example\.json/);
+  assert.match(swift, /runtime\/meetron-macos-live\.json/);
+  assert.match(swift, /Login Keychain/);
+  assert.match(swift, /runtime\/discodex-relay\.thread-id/);
+  assert.match(swift, /48 kHz \/ 2 ch/);
+  assert.match(swift, /healthCheck \? \["status", "--skip-setup"\] : \["status"\]/);
+  assert.match(swift, /autoStart && setup\.ready && state\.controlCount == 0/);
+  assert.match(swift, /private func updateSetupAccessibility\(isReady: Bool\)/);
+  assert.ok(swift.includes("Relay state: \\(status.stringValue)"));
+  assert.ok(swift.includes("Relay setup status: \\(setupHeading.stringValue)"));
+  assert.match(swift, /Relay cannot start until these requirements are complete:/);
+  assert.match(swift, /Checks the Relay setup again\. Relay cannot start until every requirement is complete\./);
+  assert.match(swift, /Refresh Relay status/);
+  assert.match(swift, /without starting Relay/);
+  assert.match(manager, /inspectRelaySetup/);
+  assert.match(manager, /requireSharedRelaySetup/);
+  assert.match(manager, /includeSetup: !has\("--skip-setup"\)/);
+  assert.doesNotMatch(manager, /discordGuildId.*process\.stderr|discordVoiceChannelId.*process\.stderr/);
 });
 
 test("macOS Relay builder creates one signed app under dist", () => {

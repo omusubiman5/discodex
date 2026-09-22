@@ -7,6 +7,13 @@ struct RelaySnapshot: Decodable {
   let lockPresent: Bool
   let routePrepared: Bool
   let healthy: Bool
+  let setup: RelaySetup?
+}
+
+struct RelaySetup: Decodable {
+  let ready: Bool
+  let missing: [String]
+  let audioFormatVerificationRequired: Bool
 }
 
 struct GainSnapshot: Decodable { let gainPercent: Int }
@@ -17,6 +24,9 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
   private let relayBadge = NSTextField(labelWithString: "RELAY CHECKING")
   private let routeBadge = NSTextField(labelWithString: "CODEX ROUTE CHECKING")
   private let voiceBadge = NSTextField(labelWithString: "VOICE CHECKING")
+  private let setupHeading = NSTextField(labelWithString: "Complete setup before starting Relay")
+  private let setupHint = NSTextField(wrappingLabelWithString: "Checking Relay setup…")
+  private let setupNextAction = NSTextField(labelWithString: "")
   private let primary = NSButton(title: "Start Relay", target: nil, action: nil)
   private let stop = NSButton(title: "Stop Relay", target: nil, action: nil)
   private let refresh = NSButton(title: "Refresh", target: nil, action: nil)
@@ -26,6 +36,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
   private let shareStart = NSButton(title: "Start Screen Share", target: nil, action: nil)
   private let shareStop = NSButton(title: "Stop Screen Share", target: nil, action: nil)
   private var snapshot: RelaySnapshot?
+  private var latestSetup: RelaySetup?
   private var busy = false
   private var closingAfterStop = false
   private var ownsControl = false
@@ -63,15 +74,12 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
     loadGainThenRefresh()
-    healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-      guard let self, !self.busy, !self.closingAfterStop else { return }
-      self.refreshState(healthCheck: true)
-    }
   }
 
   private func buildWindow() {
-    window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 600), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+    window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 700), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
     window.title = "Discodex Relay"
+    window.appearance = NSAppearance(named: .aqua)
     window.center()
     window.delegate = self
     let root = NSView(frame: window.contentView!.bounds)
@@ -80,34 +88,38 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     root.layer?.backgroundColor = NSColor.white.cgColor
     window.contentView = root
 
-    let header = NSView(frame: NSRect(x: 0, y: 495, width: 720, height: 105))
+    let header = NSView(frame: NSRect(x: 0, y: 595, width: 720, height: 105))
     header.wantsLayer = true; header.layer?.backgroundColor = NSColor(calibratedRed: 0.13, green: 0.09, blue: 0.08, alpha: 1).cgColor
     let title = label("Discodex Voice Bridge", 27, .white, NSRect(x: 24, y: 48, width: 650, height: 40))
     let subtitle = label("GPT Live and Discord voice relay", 13, .white, NSRect(x: 27, y: 20, width: 620, height: 22))
     header.addSubview(title); header.addSubview(subtitle); root.addSubview(header)
 
-    status.frame = NSRect(x: 25, y: 452, width: 670, height: 24); status.font = .systemFont(ofSize: 18)
+    status.frame = NSRect(x: 25, y: 552, width: 670, height: 24); status.font = .systemFont(ofSize: 18); status.textColor = .labelColor
     status.alignment = .right; root.addSubview(status)
-    configureBadge(relayBadge, frame: NSRect(x: 25, y: 408, width: 190, height: 30))
-    configureBadge(routeBadge, frame: NSRect(x: 225, y: 408, width: 270, height: 30))
-    configureBadge(voiceBadge, frame: NSRect(x: 505, y: 408, width: 190, height: 30))
+    configureBadge(relayBadge, frame: NSRect(x: 25, y: 508, width: 190, height: 30))
+    configureBadge(routeBadge, frame: NSRect(x: 225, y: 508, width: 270, height: 30))
+    configureBadge(voiceBadge, frame: NSRect(x: 505, y: 508, width: 190, height: 30))
     [relayBadge, routeBadge, voiceBadge].forEach { root.addSubview($0) }
 
-    primary.frame = NSRect(x: 25, y: 352, width: 150, height: 38); primary.target = self; primary.action = #selector(primaryPressed)
-    stop.frame = NSRect(x: 185, y: 352, width: 150, height: 38); stop.target = self; stop.action = #selector(stopPressed)
-    refresh.frame = NSRect(x: 345, y: 352, width: 125, height: 38); refresh.target = self; refresh.action = #selector(refreshPressed)
+    primary.frame = NSRect(x: 25, y: 452, width: 150, height: 38); primary.target = self; primary.action = #selector(primaryPressed)
+    stop.frame = NSRect(x: 185, y: 452, width: 150, height: 38); stop.target = self; stop.action = #selector(stopPressed)
+    refresh.frame = NSRect(x: 345, y: 452, width: 125, height: 38); refresh.target = self; refresh.action = #selector(refreshPressed)
     [primary, stop, refresh].forEach { root.addSubview($0) }
+    setupHeading.frame = NSRect(x: 25, y: 420, width: 670, height: 24); setupHeading.font = .boldSystemFont(ofSize: 14); setupHeading.textColor = .labelColor
+    setupHint.frame = NSRect(x: 25, y: 338, width: 670, height: 72); setupHint.font = .systemFont(ofSize: 12); setupHint.maximumNumberOfLines = 5
+    setupNextAction.frame = NSRect(x: 25, y: 314, width: 670, height: 20); setupNextAction.font = .boldSystemFont(ofSize: 12); setupNextAction.textColor = .labelColor
+    root.addSubview(setupHeading); root.addSubview(setupHint); root.addSubview(setupNextAction)
 
-    let gainHeading = label("GPT Live → Discord output volume", 18, .labelColor, NSRect(x: 25, y: 287, width: 500, height: 30)); root.addSubview(gainHeading)
-    gainLabel.frame = NSRect(x: 25, y: 253, width: 480, height: 24); root.addSubview(gainLabel)
-    gain.frame = NSRect(x: 25, y: 215, width: 480, height: 30); gain.target = self; gain.action = #selector(gainChanged); root.addSubview(gain)
-    applyGain.frame = NSRect(x: 525, y: 215, width: 120, height: 38); applyGain.target = self; applyGain.action = #selector(applyGainPressed); root.addSubview(applyGain)
+    let gainHeading = label("GPT Live → Discord output volume", 18, .labelColor, NSRect(x: 25, y: 260, width: 500, height: 30)); root.addSubview(gainHeading)
+    gainLabel.frame = NSRect(x: 25, y: 226, width: 480, height: 24); root.addSubview(gainLabel)
+    gain.frame = NSRect(x: 25, y: 188, width: 480, height: 30); gain.target = self; gain.action = #selector(gainChanged); root.addSubview(gain)
+    applyGain.frame = NSRect(x: 525, y: 188, width: 120, height: 38); applyGain.target = self; applyGain.action = #selector(applyGainPressed); root.addSubview(applyGain)
 
-    let shareHeading = label("Discord Screen Share", 18, .labelColor, NSRect(x: 25, y: 155, width: 500, height: 30)); root.addSubview(shareHeading)
-    shareStart.frame = NSRect(x: 25, y: 105, width: 190, height: 38); shareStart.target = self; shareStart.action = #selector(shareStartPressed)
-    shareStop.frame = NSRect(x: 225, y: 105, width: 190, height: 38); shareStop.target = self; shareStop.action = #selector(shareStopPressed)
+    let shareHeading = label("Discord Screen Share", 18, .labelColor, NSRect(x: 25, y: 128, width: 500, height: 30)); root.addSubview(shareHeading)
+    shareStart.frame = NSRect(x: 25, y: 78, width: 190, height: 38); shareStart.target = self; shareStart.action = #selector(shareStartPressed)
+    shareStop.frame = NSRect(x: 225, y: 78, width: 190, height: 38); shareStop.target = self; shareStop.action = #selector(shareStopPressed)
     root.addSubview(shareStart); root.addSubview(shareStop)
-    root.addSubview(label("Single control · Single runner · System sleep blocked while Relay is open", 12, .secondaryLabelColor, NSRect(x: 25, y: 35, width: 650, height: 22)))
+    root.addSubview(label("Single control · Single runner · System sleep blocked while Relay is open", 12, .secondaryLabelColor, NSRect(x: 25, y: 20, width: 650, height: 22)))
     setBusy(true)
   }
 
@@ -124,7 +136,8 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     let current = snapshot
     refresh.isEnabled = !value
     applyGain.isEnabled = !value
-    primary.isEnabled = !value && current != nil && current!.controlCount <= 1 && current!.runnerCount == 0 && !current!.lockPresent && (!current!.routePrepared || current!.controlCount == 0)
+    let setupReady = latestSetup?.ready == true
+    primary.isEnabled = !value && current != nil && (!setupReady || (current!.controlCount <= 1 && current!.runnerCount == 0 && !current!.lockPresent && (!current!.routePrepared || current!.controlCount == 0)))
     stop.isEnabled = !value && current?.controlCount == 1 && current?.runnerCount == 0 && current?.lockPresent == false
     shareStart.isEnabled = !value && current?.runnerCount == 1 && current?.lockPresent == true
     shareStop.isEnabled = !value
@@ -156,55 +169,124 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
     }
   }
 
+  private func startHealthMonitoring() {
+    guard healthTimer == nil else { return }
+    healthTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+      guard let self, self.ownsControl, !self.busy, !self.closingAfterStop else { return }
+      self.refreshState(healthCheck: true)
+    }
+  }
+
+  private func stopHealthMonitoring() {
+    healthTimer?.invalidate()
+    healthTimer = nil
+  }
+
   private func refreshState(autoStart: Bool = false, healthCheck: Bool = false) {
     setBusy(true)
-    run(["status"]) { result in
+    run(healthCheck ? ["status", "--skip-setup"] : ["status"]) { result in
       do {
-        let data = try result.get(); let state = try JSONDecoder().decode(RelaySnapshot.self, from: data); self.snapshot = state
-        let relay = state.controlCount == 1 ? "READY" : (state.controlCount == 0 ? "STOPPED" : "INVALID")
+        let data = try result.get(); let state = try JSONDecoder().decode(RelaySnapshot.self, from: data)
+        if let setup = state.setup { self.latestSetup = setup }
+        guard let setup = self.latestSetup else { throw NSError(domain: "DiscodexRelay", code: 1, userInfo: [NSLocalizedDescriptionKey: "Relay setup has not been checked yet."]) }
+        self.snapshot = state
+        let relay = !setup.ready ? "SETUP NEEDED" : (state.controlCount == 1 ? "READY" : (state.controlCount == 0 ? "STOPPED" : "INVALID"))
         let voice = state.runnerCount == 1 && state.lockPresent ? "CONNECTED" : (state.runnerCount == 0 && !state.lockPresent ? "DISCONNECTED" : "DEGRADED")
         self.status.stringValue = "\(relay)  /  \(voice)"
-        self.relayBadge.stringValue = "RELAY \(relay)"; self.relayBadge.layer?.backgroundColor = (relay == "READY" ? NSColor.systemBlue : NSColor.systemGray).cgColor
+        self.relayBadge.stringValue = "RELAY \(relay)"; self.relayBadge.layer?.backgroundColor = (relay == "READY" ? NSColor.systemBlue : (relay == "SETUP NEEDED" ? NSColor.systemOrange : NSColor.systemGray)).cgColor
         self.routeBadge.stringValue = state.routePrepared ? "CODEX ROUTE READY" : "CODEX ROUTE SETUP NEEDED"; self.routeBadge.layer?.backgroundColor = (state.routePrepared ? NSColor.systemBlue : NSColor.systemOrange).cgColor
         self.voiceBadge.stringValue = "VOICE \(voice)"; self.voiceBadge.layer?.backgroundColor = (voice == "CONNECTED" ? NSColor.systemBlue : NSColor.systemGray).cgColor
-        self.primary.title = state.routePrepared ? "Start Relay" : "Prepare Codex"
+        self.primary.title = setup.ready ? (state.routePrepared ? "Start Relay" : "Prepare Codex") : "Check Setup"
+        self.updateSetupHint(setup)
         if state.controlCount == 1 {
           if self.controlHealthySince == nil { self.controlHealthySince = Date() }
           if Date().timeIntervalSince(self.controlHealthySince!) >= 60 { self.controlRecoveryUsed = false }
-          if autoStart { self.ownsControl = true }
+          if autoStart || self.ownsControl {
+            self.ownsControl = true
+            self.startHealthMonitoring()
+          }
         } else {
           self.controlHealthySince = nil
         }
         self.setBusy(false)
-        if autoStart && state.controlCount == 0 && state.runnerCount == 0 && !state.lockPresent { self.startPrimary() }
+        if autoStart && setup.ready && state.controlCount == 0 && state.runnerCount == 0 && !state.lockPresent { self.startPrimary() }
         else if healthCheck && self.ownsControl && !self.controlRecoveryUsed && state.controlCount == 0 && state.runnerCount == 0 && !state.lockPresent {
           self.controlRecoveryUsed = true
           self.startPrimary()
         }
       } catch {
+        self.snapshot = nil
+        self.latestSetup = nil
+        self.primary.title = "Check Setup"
+        self.setupHeading.stringValue = "Relay status could not be checked"
+        self.setupHint.stringValue = "Click Refresh to check the current Relay state before continuing."
+        self.setupNextAction.stringValue = "Next: click Refresh to retry."
         self.setBusy(false); self.status.stringValue = "CONTROL ERROR  /  DISCONNECTED"
+        self.updateSetupAccessibility(isReady: false)
         if !healthCheck { self.showError(error.localizedDescription) }
       }
     }
   }
 
+  private func updateSetupHint(_ setup: RelaySetup) {
+    guard !setup.ready else {
+      setupHeading.stringValue = "Relay setup is verified"
+      setupHint.stringValue = "Relay setup verified. Confirm BlackHole 2ch is set to 48 kHz / 2 ch in Audio MIDI Setup before connecting."
+      setupHint.textColor = .secondaryLabelColor
+      setupNextAction.stringValue = "Next: prepare Codex or start Relay."
+      updateSetupAccessibility(isReady: true)
+      return
+    }
+    var steps: [String] = []
+    if setup.missing.contains("runtime-config") { steps.append("Copy config/meetron-macos-live.example.json to runtime/meetron-macos-live.json, then set only the Guild ID and Voice Channel ID.") }
+    if setup.missing.contains("discord-token") { steps.append("Store the Discord Bot Token in Login Keychain; never put it in JSON, logs, or this screen.") }
+    if setup.missing.contains("codex-task") { steps.append("Put the target Codex task UUID on one line in runtime/discodex-relay.thread-id.") }
+    if setup.missing.contains("blackhole-device") { steps.append("Install BlackHole 2ch, then configure it as 48 kHz / 2 ch in Audio MIDI Setup.") }
+    if setup.audioFormatVerificationRequired && !setup.missing.contains("blackhole-device") { steps.append("Confirm BlackHole 2ch is set to 48 kHz / 2 ch in Audio MIDI Setup.") }
+    setupHint.stringValue = steps.joined(separator: "\n")
+    setupHint.textColor = .systemOrange
+    setupHeading.stringValue = "Complete these setup items before starting Relay"
+    setupNextAction.stringValue = "Next: complete the items above, then click Check Setup."
+    updateSetupAccessibility(isReady: false)
+  }
+
+  private func updateStatusAccessibility() {
+    status.setAccessibilityLabel("Relay state: \(status.stringValue)")
+  }
+
+  private func updateSetupAccessibility(isReady: Bool) {
+    updateStatusAccessibility()
+    setupHeading.setAccessibilityLabel("Relay setup status: \(setupHeading.stringValue)")
+    setupHint.setAccessibilityLabel(isReady ? "Relay setup guidance: \(setupHint.stringValue)" : "Relay cannot start until these requirements are complete: \(setupHint.stringValue)")
+    setupNextAction.setAccessibilityLabel(setupNextAction.stringValue)
+    primary.setAccessibilityLabel(primary.title)
+    primary.setAccessibilityHelp(isReady ? "Continues with the next safe Relay action." : "Checks the Relay setup again. Relay cannot start until every requirement is complete.")
+    refresh.setAccessibilityLabel("Refresh Relay status")
+    refresh.setAccessibilityHelp("Checks the current Relay state and setup requirements without starting Relay.")
+  }
+
   private func startPrimary() {
     guard let state = snapshot else { return }
+    guard latestSetup?.ready == true else { return }
     if !state.routePrepared {
       let alert = NSAlert(); alert.messageText = "Prepare Codex Desktop?"; alert.informativeText = "Relay will perform one bounded restart of Codex Desktop to enable its loopback-only audio route. Any active Voice Talk call will close."; alert.addButton(withTitle: "Continue"); alert.addButton(withTitle: "Cancel")
       guard alert.runModal() == .alertFirstButtonReturn else { return }
     }
     setBusy(true); status.stringValue = state.routePrepared ? "STARTING" : "PREPARING CODEX"
+    updateStatusAccessibility()
     run([state.routePrepared ? "start" : "prepare", "--restart-existing"]) { result in
       if case .failure(let error) = result { self.showError(error.localizedDescription) }
-      else { self.ownsControl = true; self.controlHealthySince = Date() }
+      else { self.ownsControl = true; self.controlHealthySince = Date(); self.startHealthMonitoring() }
       self.refreshState()
     }
   }
 
   private func showError(_ message: String) { let alert = NSAlert(); alert.messageText = "Discodex Relay"; alert.informativeText = message; alert.alertStyle = .critical; alert.runModal() }
-  @objc private func primaryPressed() { startPrimary() }
-  @objc private func stopPressed() { setBusy(true); run(["stop"]) { result in if case .failure(let error) = result { self.showError(error.localizedDescription) } else { self.ownsControl = false }; self.refreshState() } }
+  @objc private func primaryPressed() {
+    guard latestSetup?.ready == true else { refreshState(); return }
+    startPrimary()
+  }
+  @objc private func stopPressed() { setBusy(true); run(["stop"]) { result in if case .failure(let error) = result { self.showError(error.localizedDescription) } else { self.ownsControl = false; self.stopHealthMonitoring() }; self.refreshState() } }
   @objc private func refreshPressed() { refreshState() }
   @objc private func gainChanged() { gainLabel.stringValue = "GPT Live → Discord output volume: \(Int((gain.doubleValue * 100).rounded()))%" }
   @objc private func applyGainPressed() { setBusy(true); run(["gain", String(format: "%.2f", gain.doubleValue)]) { result in if case .failure(let error) = result { self.showError(error.localizedDescription) }; self.refreshState() } }
@@ -225,7 +307,7 @@ final class RelayAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate 
   }
 
   func applicationWillTerminate(_ notification: Notification) {
-    healthTimer?.invalidate()
+    stopHealthMonitoring()
     if let sleepActivity { ProcessInfo.processInfo.endActivity(sleepActivity); self.sleepActivity = nil }
   }
 }

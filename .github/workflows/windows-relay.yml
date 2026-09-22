@@ -1,0 +1,41 @@
+name: Windows Relay setup
+on:
+  push:
+    paths:
+      - ".github/workflows/windows-relay.yml"
+      - "scripts/**"
+      - "src/core/relay-setup.mjs"
+      - "tests/relay-setup-state.test.mjs"
+      - "tests/fixtures/relay-setup-state.ps1"
+      - "tests/discodex-relay.test.ts"
+      - "tests/macos-relay-setup.test.mjs"
+      - "package*.json"
+  pull_request:
+    paths:
+      - ".github/workflows/windows-relay.yml"
+      - "scripts/**"
+      - "src/core/relay-setup.mjs"
+      - "tests/relay-setup-state.test.mjs"
+      - "tests/fixtures/relay-setup-state.ps1"
+      - "tests/discodex-relay.test.ts"
+      - "tests/macos-relay-setup.test.mjs"
+      - "package*.json"
+permissions:
+  contents: read
+jobs:
+  setup-state:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+      - name: Verify Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5 -or $PSVersionTable.PSVersion.Minor -ne 1) { throw 'Windows PowerShell 5.1 required' }
+      - name: Verify actual setup state transitions and shared validation
+        run: node --test tests/relay-setup-state.test.mjs tests/macos-relay-setup.test.mjs
+      - name: Parse production PowerShell boundaries
+        run: node --test --test-name-pattern="Relay PowerShell boundaries parse without errors" tests/discodex-relay.test.ts

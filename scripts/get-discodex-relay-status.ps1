@@ -3,6 +3,10 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$runtimeConfigFile = Join-Path $repoRoot 'runtime\meetron-windows-live.json'
+$taskFile = Join-Path $repoRoot 'runtime\discodex-relay.thread-id'
+$setupInspector = Join-Path $repoRoot 'scripts\inspect-relay-setup.mjs'
+$dpapiCredentialFile = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'CodexVoiceBridge\secrets\codex-discord-voice-bridge.bot-token.dpapi' } else { $null }
 $nodes = @(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue)
 $controls = @($nodes | Where-Object { $_.CommandLine -match 'run-discord-production-control\.mjs' })
 $standaloneRunners = @($nodes | Where-Object { $_.CommandLine -match 'run-meetron-windows-live' })
@@ -30,12 +34,29 @@ if ($codexRoots.Count -eq 1) {
   }
 }
 
+$windowsCable = @(
+  Get-PnpDevice -Class AudioEndpoint -PresentOnly -ErrorAction SilentlyContinue |
+    Where-Object { $_.Status -eq 'OK' -and $_.FriendlyName -eq 'CABLE Input (VB-Audio Virtual Cable)' }
+)
+$credentialReady = $null -ne $dpapiCredentialFile -and (Test-Path -LiteralPath $dpapiCredentialFile -PathType Leaf)
+$audioReady = $windowsCable.Count -eq 1
+$setupOutput = & node.exe $setupInspector `
+  '--runtime-config' $runtimeConfigFile `
+  '--task-file' $taskFile `
+  '--credential-ready' ([string]$credentialReady).ToLowerInvariant() `
+  '--audio-ready' ([string]$audioReady).ToLowerInvariant() `
+  '--audio-code' 'vb-cable-device' `
+  '--audio-format-verification-required' 'false' 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $setupOutput) { throw 'Relay setup inspection failed.' }
+$setup = $setupOutput.Trim() | ConvertFrom-Json
+
 [pscustomobject]@{
   controlCount = $controls.Count
   runnerCount = $runnerCount
   lockPresent = $lockPresent
   routePrepared = $routePrepared
   healthy = ($controls.Count -le 1) -and ($runnerCount -le 1) -and $ownershipConsistent
+  setup = $setup
   secretOutput = $false
   identifierOutput = $false
 } | ConvertTo-Json -Compress
